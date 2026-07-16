@@ -1,17 +1,16 @@
 name: Restore native Codex candidate
 
 on:
-  push:
-    branches:
-      - agent/runtime-selected-native-subagents
-    paths:
-      - .github/workflows/restore-native-candidate.yml
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   restore:
+    if: github.event.pull_request.head.ref == 'agent/runtime-selected-native-subagents'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
