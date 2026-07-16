@@ -5,7 +5,7 @@ description: Refine an annotated Humanize plan and QA ledger while delegating bo
 
 # Humanize Refine Plan for Codex
 
-Refine an annotated plan without implementing repository code. Preserve the existing Humanize plan schema, comment semantics, QA ledger, alternate-language behavior, and atomic write transaction. The root thread owns parsing, classification, plan edits, consistency, convergence, QA generation, and final writes. Native researchers may own bounded read-only `research_request` work.
+Refine an annotated plan without implementing repository code. Preserve the existing Humanize plan schema, comment semantics, QA ledger, alternate-language behavior, and atomic write transaction. The root thread owns parsing, classification, plan edits, consistency, convergence, QA generation, and final writes. Native researchers may own bounded behaviorally no-write `research_request` work. Effective child permissions inherit from the live parent task, so the root verifies repository state before integrating research.
 
 The installer replaces `{{HUMANIZE_RUNTIME_ROOT}}` with the installed deterministic runtime path.
 
@@ -56,6 +56,12 @@ A `research_request` qualifies for delegation when it requires repository facts 
 
 Keep work local when the fact is already available, trivial, immediately blocking and faster to inspect directly, or tightly coupled to final plan synthesis. Never delegate ordinary questions, requested text edits, classification, convergence, QA synthesis, or atomic writes.
 
+## No-write baseline
+
+Before spawning the first researcher, record the current branch, exact `HEAD`, staged/unstaged tracked-file status, and untracked non-Humanize files. Preserve any existing dirty state exactly. The parent may continue parsing, classifying, answering comments, and preparing plan/QA content in memory, but must not write repository output or mutate implementation files while a research child is active.
+
+Each researcher prompt must prohibit changing files, the index, branches, commits, or untracked non-Humanize state. This is a mandatory behavioral contract, not a claim of separate hard sandbox isolation.
+
 ## Runtime-selected spawn contract
 
 Humanize defines no default model or reasoning effort.
@@ -72,7 +78,7 @@ If an explicit model or effort is unavailable, report the runtime error; do not 
 
 ## Child task and required evidence
 
-Give the child only the relevant `CMT-N` items, the unmodified source-plan context needed to understand them, repository paths and source boundaries, and the exact decision the evidence must support. Require read-only behavior and this result shape:
+Give the child only the relevant `CMT-N` items, the unmodified source-plan context needed to understand them, repository paths and source boundaries, and the exact decision the evidence must support. Require no-write behavior and this result shape:
 
 ```text
 COMMENT_IDS: CMT-N[, ...]
@@ -92,23 +98,25 @@ Before joining children, the parent must continue non-overlapping work:
 
 1. Finish extraction and classification of all comments.
 2. Answer independent `question` items.
-3. Apply `change_request` items that do not depend on research.
+3. Prepare in-memory `change_request` edits that do not depend on research.
 4. Build the cross-reference/consistency map for ACs, task IDs, dependencies, routing tags, pending decisions, and convergence.
 5. Prepare the QA ledger rows and mark the research-dependent fields as pending.
 
-Do not duplicate delegated research. Wait only when its evidence becomes necessary for the next plan edit or final transaction.
+Do not duplicate delegated research. Wait only when its evidence becomes necessary for the next plan edit or final transaction. Do not write final outputs while any required researcher is active.
 
 ## Integration and resolution
 
 Before applying any research-dependent edit, completing `Research Findings`, deciding convergence, validating the final plan, or writing output:
 
 - collect every required child result;
-- verify its load-bearing repository citations;
+- compare the current branch, `HEAD`, index, tracked-file status, and untracked non-Humanize set against the recorded baseline;
+- reject every child result associated with an unexplained repository-state change, report the exact delta, and do not restore or discard changes automatically;
+- verify load-bearing repository citations only after the no-write baseline matches;
 - integrate only conclusions supported by evidence;
 - preserve unresolved material choices as `DEC-N` pending decisions;
-- record child failure, local takeover, or insufficient evidence in QA.
+- record child failure, local takeover, insufficient evidence, or a no-write violation in QA.
 
-Every raw comment ends with one disposition: `answered`, `applied`, `researched`, `deferred`, or `resolved`. No final plan or QA may claim research completion before its evidence is integrated.
+Every raw comment ends with one disposition: `answered`, `applied`, `researched`, `deferred`, or `resolved`. No final plan or QA may claim research completion before its evidence is collected, baseline-verified, and integrated.
 
 ## Plan and QA validation
 
