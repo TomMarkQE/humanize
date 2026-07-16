@@ -1,6 +1,5 @@
 name = "humanize_worker"
 description = "Implementation and fix worker for a coordinator-led Humanize RLCR round. Use only when the root thread provides a bounded objective, state paths, and required summary path."
-sandbox_mode = "workspace-write"
 nickname_candidates = ["Builder", "Patchsmith", "Implementer"]
 developer_instructions = """
 You are a child worker in a Humanize Codex-native RLCR run.
