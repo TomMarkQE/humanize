@@ -1,0 +1,74 @@
+PASS: native installer installs humanize
+PASS: native installer marks humanize as managed
+PASS: native installer installs humanize-rlcr
+PASS: native installer marks humanize-rlcr as managed
+PASS: native installer installs humanize-consult
+PASS: native installer marks humanize-consult as managed
+PASS: native installer installs humanize-gen-plan
+PASS: native installer marks humanize-gen-plan as managed
+PASS: native installer installs humanize-refine-plan
+PASS: native installer marks humanize-refine-plan as managed
+PASS: native installer installs humanize-worker custom agent
+PASS: native installer installs humanize-implementation-reviewer custom agent
+PASS: native installer installs humanize-code-reviewer custom agent
+PASS: native installer installs humanize-researcher custom agent
+PASS: native installer includes deterministic state runtime
+PASS: native installer includes plan validator
+PASS: native installer includes refine validator
+PASS: native installer omits legacy hook runtime
+PASS: native installer omits nested one-shot model script
+PASS: native installer omits legacy loop setup script
+PASS: native installer omits model-backed BitLesson selector
+PASS: installed RLCR skill names the native worker agent
+PASS: installed RLCR skill names the independent implementation reviewer
+PASS: installed RLCR skill names the independent code reviewer
+PASS: installed RLCR skill has a hydrated runtime path
+PASS: Codex installer strips provider-specific frontmatter
+PASS: upgrade removes duplicate legacy humanize skill
+PASS: upgrade removes duplicate legacy RLCR skill
+PASS: upgrade removes legacy model-selector shim
+PASS: native installer writes an ownership manifest
+PASS: migration preserves unrelated Stop hooks
+PASS: migration preserves unrelated hook events
+PASS: migration removes legacy Humanize model hooks
+PASS: native installer never invokes the Codex CLI
+PASS: manifest records one native copy of every managed asset
+PASS: idempotent install preserves unrelated custom agents
+PASS: Codex reinstall preserves a Kimi-owned selector shim
+PASS: preserved selector shim still targets Kimi runtime
+PASS: idempotent install preserves unrelated hooks
+PASS: idempotent install leaves exactly four managed agents
+PASS: idempotent install leaves exactly five managed skills
+PASS: unified --target codex uses native RLCR assets
+PASS: unified --target codex installs custom agents
+PASS: unified --target codex does not create hooks.json
+PASS: combined install keeps legacy Kimi RLCR assets
+PASS: combined install keeps native Codex RLCR assets
+PASS: combined install gives Kimi the legacy provider skill
+FAIL: combined install gives Codex the native coordinator skill
+  Expected: Codex-native workflow
+  Got: not found in /tmp/tmp.EKE0Tlp2jw/both/codex-skills/humanize-rlcr/SKILL.md
+PASS: combined install preserves Kimi selector shim
+PASS: combined selector shim still targets Kimi
+PASS: combined install rejects a shared provider skill directory
+PASS: combined path conflict explains the migration
+PASS: dry-run creates no skill assets
+PASS: dry-run creates no agent assets
+PASS: malformed existing hooks fail the migration safely
+PASS: failed migration leaves malformed user file untouched
+PASS: uninstall removes managed humanize
+PASS: uninstall removes managed humanize-rlcr
+PASS: uninstall removes managed humanize-consult
+PASS: uninstall removes managed humanize-gen-plan
+PASS: uninstall removes managed humanize-refine-plan
+PASS: uninstall removes managed humanize-worker agent
+PASS: uninstall removes managed humanize-implementation-reviewer agent
+PASS: uninstall removes managed humanize-code-reviewer agent
+PASS: uninstall removes managed humanize-researcher agent
+PASS: uninstall preserves unrelated custom agents
+PASS: Codex uninstall preserves a Kimi-owned selector shim
+PASS: uninstall preserves unrelated Stop hook
+PASS: uninstall removes ownership manifest
+
+Passed: 68
+Failed: 1
