@@ -7,6 +7,21 @@ on:
     branches: ['**']
 
 jobs:
+  codex-native-targeted:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run Codex-native tests
+        run: |
+          bash tests/test-codex-native-skills.sh
+          bash tests/test-codex-native-runtime.sh
+          bash tests/test-codex-hook-install.sh
+
   run-all-tests:
     runs-on: ubuntu-latest
     steps:
@@ -20,3 +35,14 @@ jobs:
         run: |
           chmod +x tests/run-all-tests.sh
           ./tests/run-all-tests.sh
+
+  bash-3-runner-contract:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify fail-closed runner with system Bash
+        run: |
+          /bin/bash --version | head -1
+          /bin/bash tests/test-test-runner.sh
