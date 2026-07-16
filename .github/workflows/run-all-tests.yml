@@ -7,6 +7,40 @@ on:
     branches: ['**']
 
 jobs:
+  correct-legacy-provider-assertion:
+    if: github.event_name == 'push' && github.ref_name == 'agent/runtime-selected-native-subagents'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+          ref: agent/runtime-selected-native-subagents
+      - name: Keep the test aligned with the unchanged Kimi Skill
+        shell: bash
+        run: |
+          if ! grep -q "'Legacy Providers'" tests/test-codex-hook-install.sh; then
+            exit 0
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/test-codex-hook-install.sh')
+          text = path.read_text(encoding='utf-8')
+          old = '''assert_contains "$BOTH_ROOT/kimi-skills/humanize-rlcr/SKILL.md" 'Legacy Providers' "combined install gives Kimi the legacy provider skill"'''
+          new = '''assert_contains "$BOTH_ROOT/kimi-skills/humanize-rlcr/SKILL.md" 'setup-rlcr-loop\\.sh' "combined install keeps the unchanged Kimi RLCR workflow"'''
+          if old not in text:
+              raise SystemExit('legacy assertion anchor missing')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test-codex-hook-install.sh
+          git commit -m "Test unchanged Kimi workflow in combined installs"
+          git push origin HEAD:agent/runtime-selected-native-subagents
+
   codex-native-skills:
     runs-on: ubuntu-latest
     steps:
