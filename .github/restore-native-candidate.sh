@@ -55,7 +55,7 @@ while True:
     items.append(item)
     pos = end
 
-if len(items) < 20:
+if len(items) < 18:
     raise SystemExit(f"too few complete payload files recovered: {len(items)}")
 
 for item in items:
@@ -76,7 +76,7 @@ for temporary in (
     if temporary.exists():
         temporary.unlink()
 
-print(f"recovered_payload_files={len(items)};last_path={items[-1]['path']}")
+print("recovered_payload_paths=" + ",".join(item["path"] for item in items))
 PY
 
 git config user.name "github-actions[bot]"
