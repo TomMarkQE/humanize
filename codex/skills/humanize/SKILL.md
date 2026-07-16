@@ -17,7 +17,12 @@ For Codex sessions:
 - never use a Stop hook to obtain model output;
 - deterministic scripts may validate paths, inspect Git, persist state, and parse stable contracts, but they are not agents;
 - the root coordinator is the only thread that delegates; child roles do not spawn descendants;
-- every role receives a self-contained bounded prompt because custom-agent selection and explicit model overrides are incompatible with a full-history fork.
+- every role receives a self-contained bounded prompt because custom-agent selection and explicit model overrides are incompatible with a full-history fork;
+- effective child sandbox and approval behavior inherit from the live parent task after role selection;
+- the worker is the only role behaviorally authorized to change repository files;
+- researcher and reviewer roles are mandatory no-write contracts, not claims of a separately enforced sandbox. The coordinator records the current HEAD and non-Humanize working-tree status before such a child starts and verifies both are unchanged before integrating the result.
+
+A no-write child that changes HEAD, the index, tracked files, or untracked non-Humanize files has violated its role contract. Do not integrate its result or advance workflow state; report the exact change and persist an `agent_failed` or `permission_denied` outcome as appropriate.
 
 ## Runtime model and effort selection
 
