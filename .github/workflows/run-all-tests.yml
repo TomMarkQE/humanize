@@ -37,6 +37,38 @@ jobs:
       - name: Test native install and migration
         run: bash tests/test-codex-hook-install.sh
 
+  capture-native-diagnostics:
+    if: github.event_name == 'push' && github.ref_name == 'agent/runtime-selected-native-subagents'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+          ref: agent/runtime-selected-native-subagents
+      - name: Persist target test output once
+        shell: bash
+        run: |
+          if [[ -f .ci/native-test-status.txt ]]; then
+            exit 0
+          fi
+          set +e
+          mkdir -p .ci
+          bash tests/test-codex-native-skills.sh > .ci/native-skills.log 2>&1
+          skills_exit=$?
+          bash tests/test-codex-hook-install.sh > .ci/native-install.log 2>&1
+          install_exit=$?
+          printf 'skills_exit=%s\ninstall_exit=%s\n' "$skills_exit" "$install_exit" > .ci/native-test-status.txt
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/native-skills.log .ci/native-install.log .ci/native-test-status.txt
+          git commit -m "Capture native test diagnostics"
+          git push origin HEAD:agent/runtime-selected-native-subagents
+
   run-all-tests:
     runs-on: ubuntu-latest
     steps:
