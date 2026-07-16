@@ -30,7 +30,16 @@ payload_bytes = b"".join(
     for part in parts
 )
 print(f"payload_bytes={len(payload_bytes)}")
-payload = json.loads(payload_bytes.decode("utf-8"))
+payload_text = payload_bytes.decode("utf-8")
+try:
+    payload = json.loads(payload_text)
+except json.JSONDecodeError as exc:
+    start = max(0, exc.pos - 100)
+    end = min(len(payload_text), exc.pos + 100)
+    print(f"payload_json_error={exc.msg};line={exc.lineno};column={exc.colno};position={exc.pos}")
+    print(f"payload_context={payload_text[start:end]!r}")
+    raise SystemExit(2)
+
 if payload.get("schema_version") != 1:
     raise SystemExit("unsupported payload schema")
 
