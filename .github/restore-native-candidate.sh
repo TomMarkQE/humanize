@@ -25,24 +25,24 @@ parts = [
     ".humanize-native-json.part-11",
 ]
 
-payload_bytes = b"".join(
+chunks = [
     subprocess.check_output(["git", "show", f"{source_commit}:{part}"])
     for part in parts
-)
-print(f"payload_bytes={len(payload_bytes)}")
+]
+payload_bytes = b"".join(chunks)
 payload_text = payload_bytes.decode("utf-8")
+chunk_summary = ",".join(f"{part.rsplit('-', 1)[-1]}:{len(chunk)}" for part, chunk in zip(parts, chunks))
+print(f"payload_bytes={len(payload_bytes)};chunks={chunk_summary};tail={payload_text[-160:]!r}")
 try:
     payload = json.loads(payload_text)
 except json.JSONDecodeError as exc:
     start = max(0, exc.pos - 100)
     end = min(len(payload_text), exc.pos + 100)
-    print(f"payload_json_error={exc.msg};line={exc.lineno};column={exc.colno};position={exc.pos}")
-    print(f"payload_context={payload_text[start:end]!r}")
+    print(f"payload_json_error={exc.msg};line={exc.lineno};column={exc.colno};position={exc.pos};context={payload_text[start:end]!r}")
     raise SystemExit(2)
 
 if payload.get("schema_version") != 1:
     raise SystemExit("unsupported payload schema")
-
 items = payload.get("files")
 if not isinstance(items, list) or not items:
     raise SystemExit("payload contains no files")
