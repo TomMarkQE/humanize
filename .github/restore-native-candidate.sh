@@ -25,46 +25,43 @@ parts = [
     ".humanize-native-json.part-11",
 ]
 
-chunks = [
+payload_text = b"".join(
     subprocess.check_output(["git", "show", f"{source_commit}:{part}"])
     for part in parts
-]
-payload_bytes = b"".join(chunks)
-payload_text = payload_bytes.decode("utf-8")
-chunk_summary = ",".join(f"{part.rsplit('-', 1)[-1]}:{len(chunk)}" for part, chunk in zip(parts, chunks))
-print(f"payload_bytes={len(payload_bytes)};chunks={chunk_summary};tail={payload_text[-160:]!r}")
-try:
-    payload = json.loads(payload_text)
-except json.JSONDecodeError as exc:
-    start = max(0, exc.pos - 100)
-    end = min(len(payload_text), exc.pos + 100)
-    print(f"payload_json_error={exc.msg};line={exc.lineno};column={exc.colno};position={exc.pos};context={payload_text[start:end]!r}")
-    raise SystemExit(2)
+).decode("utf-8")
+prefix = '{"schema_version":1,"files":['
+if not payload_text.startswith(prefix):
+    raise SystemExit("unexpected payload prefix")
 
-if payload.get("schema_version") != 1:
-    raise SystemExit("unsupported payload schema")
-items = payload.get("files")
-if not isinstance(items, list) or not items:
-    raise SystemExit("payload contains no files")
+items = []
+decoder = json.JSONDecoder()
+pos = len(prefix)
+while True:
+    while pos < len(payload_text) and payload_text[pos] in " \t\r\n,":
+        pos += 1
+    if pos >= len(payload_text) or payload_text[pos] == "]":
+        break
+    try:
+        item, end = decoder.raw_decode(payload_text, pos)
+    except json.JSONDecodeError as exc:
+        print(
+            "partial_payload_stop="
+            f"{exc.msg};position={exc.pos};recovered={len(items)};"
+            f"last_path={items[-1]['path'] if items else 'none'}"
+        )
+        break
+    if not isinstance(item, dict) or not {"path", "content"}.issubset(item):
+        raise SystemExit(f"invalid payload item at position {pos}")
+    items.append(item)
+    pos = end
 
-desired_paths = set()
+if len(items) < 20:
+    raise SystemExit(f"too few complete payload files recovered: {len(items)}")
+
 for item in items:
     relative = pathlib.PurePosixPath(item["path"])
     if relative.is_absolute() or ".." in relative.parts:
         raise SystemExit(f"unsafe payload path: {relative}")
-    desired_paths.add(relative.as_posix())
-
-tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode("utf-8").split("\0")
-for tracked_path in tracked:
-    if not tracked_path:
-        continue
-    if tracked_path not in desired_paths:
-        target = root / tracked_path
-        if target.is_file() or target.is_symlink():
-            target.unlink()
-
-for item in items:
-    relative = pathlib.PurePosixPath(item["path"])
     target = (root / pathlib.Path(*relative.parts)).resolve()
     if root not in target.parents and target != root:
         raise SystemExit(f"payload escaped repository: {relative}")
@@ -72,7 +69,14 @@ for item in items:
     target.write_text(item["content"], encoding="utf-8", newline="\n")
     os.chmod(target, item.get("mode", 0o644))
 
-print(f"payload_files={len(items)}")
+for temporary in (
+    root / ".github/workflows/restore-native-candidate.yml",
+    root / ".github/restore-native-candidate.sh",
+):
+    if temporary.exists():
+        temporary.unlink()
+
+print(f"recovered_payload_files={len(items)};last_path={items[-1]['path']}")
 PY
 
 git config user.name "github-actions[bot]"
