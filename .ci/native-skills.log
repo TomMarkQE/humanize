@@ -1,0 +1,94 @@
+PASS: source skill exists: codex/skills/humanize-gen-plan/SKILL.md
+PASS: skill discusses runtime model selection: codex/skills/humanize-gen-plan/SKILL.md
+PASS: skill discusses actual reasoning_effort field: codex/skills/humanize-gen-plan/SKILL.md
+PASS: skill defines V2 non-full fork: codex/skills/humanize-gen-plan/SKILL.md
+PASS: skill defines V1 non-full fork: codex/skills/humanize-gen-plan/SKILL.md
+PASS: skill preserves inheritance by omission: codex/skills/humanize-gen-plan/SKILL.md
+PASS: skill pins no concrete subagent model: codex/skills/humanize-gen-plan/SKILL.md
+PASS: source skill exists: codex/skills/humanize-refine-plan/SKILL.md
+PASS: skill discusses runtime model selection: codex/skills/humanize-refine-plan/SKILL.md
+PASS: skill discusses actual reasoning_effort field: codex/skills/humanize-refine-plan/SKILL.md
+PASS: skill defines V2 non-full fork: codex/skills/humanize-refine-plan/SKILL.md
+PASS: skill defines V1 non-full fork: codex/skills/humanize-refine-plan/SKILL.md
+PASS: skill preserves inheritance by omission: codex/skills/humanize-refine-plan/SKILL.md
+PASS: skill pins no concrete subagent model: codex/skills/humanize-refine-plan/SKILL.md
+PASS: source skill exists: codex/skills/humanize-rlcr/SKILL.md
+PASS: skill discusses runtime model selection: codex/skills/humanize-rlcr/SKILL.md
+PASS: skill discusses actual reasoning_effort field: codex/skills/humanize-rlcr/SKILL.md
+PASS: skill defines V2 non-full fork: codex/skills/humanize-rlcr/SKILL.md
+PASS: skill defines V1 non-full fork: codex/skills/humanize-rlcr/SKILL.md
+PASS: skill preserves inheritance by omission: codex/skills/humanize-rlcr/SKILL.md
+PASS: skill pins no concrete subagent model: codex/skills/humanize-rlcr/SKILL.md
+PASS: source skill exists: codex/skills/humanize/SKILL.md
+PASS: skill discusses runtime model selection: codex/skills/humanize/SKILL.md
+PASS: skill discusses actual reasoning_effort field: codex/skills/humanize/SKILL.md
+PASS: skill defines V2 non-full fork: codex/skills/humanize/SKILL.md
+PASS: skill defines V1 non-full fork: codex/skills/humanize/SKILL.md
+PASS: skill preserves inheritance by omission: codex/skills/humanize/SKILL.md
+PASS: skill pins no concrete subagent model: codex/skills/humanize/SKILL.md
+PASS: source skill exists: codex/skills/humanize-consult/SKILL.md
+PASS: skill discusses runtime model selection: codex/skills/humanize-consult/SKILL.md
+PASS: skill discusses actual reasoning_effort field: codex/skills/humanize-consult/SKILL.md
+PASS: skill defines V2 non-full fork: codex/skills/humanize-consult/SKILL.md
+PASS: skill defines V1 non-full fork: codex/skills/humanize-consult/SKILL.md
+PASS: skill preserves inheritance by omission: codex/skills/humanize-consult/SKILL.md
+PASS: skill pins no concrete subagent model: codex/skills/humanize-consult/SKILL.md
+PASS: gen-plan requires useful parent work before join
+PASS: gen-plan joins before final synthesis
+PASS: gen-plan requires structured repository evidence
+PASS: gen-plan preserves validator
+PASS: gen-plan preserves output schema
+PASS: refine-plan delegates only research_request work
+PASS: refine-plan requires useful parent work before join
+PASS: refine-plan preserves atomic output behavior
+PASS: refine-plan preserves validator
+PASS: refine-plan preserves QA ledger ownership
+PASS: RLCR owns native role humanize_worker
+PASS: RLCR owns native role humanize_researcher
+PASS: RLCR owns native role humanize_implementation_reviewer
+PASS: RLCR owns native role humanize_code_reviewer
+PASS: RLCR requires real tool parameter overrides
+PASS: RLCR parent continues useful work during research
+PASS: RLCR parent continues useful work during implementation
+PASS: RLCR uses independent implementation review thread
+PASS: RLCR uses independent code review thread
+PASS: RLCR does not finalize before independent integration
+PASS: RLCR uses deterministic state machine
+PASS: RLCR contains no executable nested Codex command
+PASS: custom agent exists: humanize-worker
+PASS: custom agent pins no model policy: humanize-worker
+PASS: custom agent exists: humanize-researcher
+PASS: custom agent pins no model policy: humanize-researcher
+PASS: custom agent exists: humanize-implementation-reviewer
+PASS: custom agent pins no model policy: humanize-implementation-reviewer
+PASS: custom agent exists: humanize-code-reviewer
+PASS: custom agent pins no model policy: humanize-code-reviewer
+PASS: worker owns bounded writes
+PASS: humanize-researcher is read-only
+PASS: humanize-implementation-reviewer is read-only
+PASS: humanize-code-reviewer is read-only
+PASS: installer validates native gen-plan source
+PASS: installer validates native refine-plan source
+PASS: installer installs native gen-plan
+PASS: installer installs native refine-plan
+PASS: Codex installer does not install shared planning skills
+PASS: installed skill exists: humanize
+PASS: installed skill is hydrated: humanize
+PASS: installed skill exists: humanize-consult
+PASS: installed skill is hydrated: humanize-consult
+PASS: installed skill exists: humanize-gen-plan
+PASS: installed skill is hydrated: humanize-gen-plan
+PASS: installed skill exists: humanize-refine-plan
+PASS: installed skill is hydrated: humanize-refine-plan
+PASS: installed skill exists: humanize-rlcr
+PASS: installed skill is hydrated: humanize-rlcr
+PASS: installed agent exists: humanize-worker
+PASS: installed agent exists: humanize-researcher
+PASS: installed agent exists: humanize-implementation-reviewer
+PASS: installed agent exists: humanize-code-reviewer
+PASS: installed RLCR preserves runtime override contract
+PASS: installed gen-plan preserves parallel parent work
+PASS: installed refine-plan preserves transaction contract
+
+Passed: 91
+Failed: 0
