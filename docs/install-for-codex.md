@@ -16,7 +16,7 @@ Use a current Codex build with all of these capabilities:
 
 Humanize uses capability-based support rather than claiming an unpublished numeric minimum Codex version. When reporting a compatibility problem, include `codex --version`, the active client, whether a direct native child can be created in the same task, and the visible `spawn_agent` schema when available.
 
-Subagents inherit the parent task's live working directory, sandbox, and approval choices. Select a parent permission mode that can perform the requested implementation before starting RLCR. The installed researcher and reviewer roles declare read-only sandboxes; the worker declares workspace-write, subject to the live parent/session policy.
+Subagents inherit the parent task's live working directory, sandbox, and approval choices. Select a parent permission mode that can perform the requested implementation before starting RLCR. Custom role files define bounded behavior and prompt contracts; they do not provide a separately guaranteed permission sandbox after the live parent profile is applied. The worker is the only role authorized by Humanize to change repository files. Researcher and reviewer roles are mandatory no-write contracts, and the coordinator verifies branch, HEAD, index, tracked status, and untracked non-Humanize files before integrating their results.
 
 ## Install from a checkout
 
@@ -84,12 +84,14 @@ grep -q '{{HUMANIZE_RUNTIME_ROOT}}' ~/.agents/skills/humanize-rlcr/SKILL.md \
   && echo 'unexpected unhydrated Skill' >&2
 ```
 
-No installed role may pin a model or model reasoning effort:
+No installed role may pin a model, model reasoning effort, or sandbox mode:
 
 ```bash
-! grep -RE '^[[:space:]]*(model|model_reasoning_effort)[[:space:]]*=' \
+! grep -RE '^[[:space:]]*(model|model_reasoning_effort|sandbox_mode)[[:space:]]*=' \
   ~/.codex/agents/humanize-*.toml
 ```
+
+This is intentional: the live parent task supplies effective permissions. Verify that researcher and reviewer files contain explicit `Never edit files` instructions and that the installed RLCR Skill contains its no-write baseline checks.
 
 A successful install does not require or create `~/.codex/hooks.json`. When that file already exists, unrelated hooks remain unchanged.
 
@@ -147,12 +149,12 @@ The legacy `--codex-model`, `--codex-timeout`, `--agent-teams`, `--claude-answer
 
 The root Codex thread remains the coordinator. It creates child threads for:
 
-- `humanize_worker`: implementation and fix commits;
-- `humanize_implementation_reviewer`: independent plan and acceptance review;
-- `humanize_code_reviewer`: independent branch-diff review;
-- `humanize_researcher`: bounded read-only investigation.
+- `humanize_worker`: implementation and fix commits under inherited live permissions;
+- `humanize_implementation_reviewer`: behaviorally no-write independent plan and acceptance review;
+- `humanize_code_reviewer`: behaviorally no-write independent branch-diff review;
+- `humanize_researcher`: behaviorally no-write bounded investigation.
 
-Only the root delegates. Writing work is sequential to avoid conflicting edits. Read-only research may overlap only when questions and evidence scopes are independent. The root must perform useful non-overlapping work before joining and must collect and integrate every required child result before a dependent edit, state transition, plan write, or final report.
+Only the root delegates. The worker is the only repository writer. A no-write child cannot overlap with the worker or another writer because the coordinator must attribute any repository-state change. Independent no-write research may overlap only when questions and evidence scopes are independent. The root must perform useful non-overlapping no-write work before joining and must collect, baseline-check, verify, and integrate every required child result before a dependent edit, state transition, plan write, or final report.
 
 The loop writes deterministic evidence under `.humanize/rlcr/<run>/`:
 
@@ -170,7 +172,7 @@ These files record state and results; they are not a substitute for native agent
 
 ## Real native forward test
 
-Repository tests validate source and installed Skill contracts, agent definitions, installer migration, deterministic runtime transitions, and failure behavior without consuming a model invocation. They do not prove that a particular Codex client/account currently exposes a requested model override.
+Repository tests validate source and installed Skill contracts, agent definitions, installer migration, deterministic runtime transitions, no-write baseline requirements, and failure behavior without consuming a model invocation. They do not prove that a particular Codex client/account currently exposes a requested model override or that a real child obeyed its behavioral contract.
 
 After installation, forward-test in an isolated temporary repository and a fresh Codex root task:
 
@@ -184,22 +186,26 @@ After installation, forward-test in an isolated temporary repository and a fresh
 3. **Parent progress and join case**
    - confirm the root performs useful non-overlapping work after spawning;
    - confirm it does not finalize, write the final plan/QA, or advance RLCR state before collecting and integrating the child evidence.
-4. **Compatibility case**
+4. **No-write verification case**
+   - for researcher and reviewer children, confirm the coordinator records branch/HEAD/index/tracked/untracked state before spawn and verifies it before integration;
+   - confirm no no-write child overlaps with a worker or another writer;
+   - if a controlled negative test is available, confirm an unexpected repository change prevents integration and runtime advancement.
+5. **Compatibility case**
    - confirm generated plan/refinement schemas, validators, atomic writes, fixed review base, reviewer markers, and deterministic state behavior remain unchanged.
 
-Record the client, Codex version, parent model/effort, requested child values, observed fork mode, child metadata, and final output paths. If the client hides model overrides or metadata, report that capability limitation rather than claiming the override was verified.
+Record the client, Codex version, parent model/effort, requested child values, observed fork mode, child metadata, before/after repository-state evidence, and final output paths. If the client hides model overrides or metadata, report that capability limitation rather than claiming the override was verified.
 
 ## Completion and failure states
 
 Humanize reports one of these outcomes:
 
-- `complete`: an independent code reviewer returned `pass` with no unresolved `[P0-9]` finding;
+- `complete`: an independent code reviewer returned `pass` with no unresolved `[P0-9]` finding and its no-write baseline matched;
 - `blocked`: a required native child was unavailable, permissions prevented required work, review evidence was inaccessible, or the mainline repeatedly stalled;
-- `failed`: validation failed, maximum rounds were exhausted, or a child could not finish required work;
+- `failed`: validation failed, maximum rounds were exhausted, a child could not finish required work, or a no-write child changed repository state;
 - `cancelled`: the user stopped the workflow;
 - `active`: another implementation or review action remains.
 
-There is no hidden nested-CLI fallback. Humanize records `agent_unavailable`, `permission_denied`, `cancelled`, `interrupted`, `agent_failed`, or `validation_failed` as applicable. Malformed reviewer contracts, branch changes, rewritten checkpoint history, corrupt state, plan tampering, dirty worker checkpoints, and internal runtime errors return non-zero exits and do not silently advance state. Native state transitions are serialized with per-loop file locks.
+There is no hidden nested-CLI fallback. Humanize records `agent_unavailable`, `permission_denied`, `cancelled`, `interrupted`, `agent_failed`, or `validation_failed` as applicable. Malformed reviewer contracts, branch changes, rewritten checkpoint history, corrupt state, plan tampering, dirty worker checkpoints, no-write child state changes, and internal runtime errors return non-zero exits and do not silently advance state. Native state transitions are serialized with per-loop file locks.
 
 ## Migration from the legacy Codex install
 
@@ -251,6 +257,10 @@ Use a model and effort exposed by the current Codex client for native subagents.
 **A worker cannot write or run a command**
 
 Subagents inherit the current parent permission mode. Review the blocked operation and restart or continue with an appropriate parent permission choice. Do not broaden permissions merely to bypass a nonessential step.
+
+**A researcher or reviewer changed repository state**
+
+Do not integrate its result and do not automatically reset the tree. Compare the recorded baseline with the current branch, HEAD, index, tracked status, and untracked non-Humanize files; report the exact delta and persist `agent_failed` or `permission_denied`. Because effective permissions inherit from the parent, Humanize relies on the child no-write contract plus this observable verification rather than claiming hard role isolation.
 
 **The runtime rejects initialization or a checkpoint**
 
