@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -f .native-candidate-restored ]]; then
+  echo "native candidate already restored"
+  exit 0
+fi
+
 python3 - <<'PY'
 import json
 import os
@@ -69,14 +74,11 @@ for item in items:
     target.write_text(item["content"], encoding="utf-8", newline="\n")
     os.chmod(target, item.get("mode", 0o644))
 
-for temporary in (
-    root / ".github/workflows/restore-native-candidate.yml",
-    root / ".github/restore-native-candidate.sh",
-):
-    if temporary.exists():
-        temporary.unlink()
-
-print("recovered_payload_paths=" + ",".join(item["path"] for item in items))
+(root / ".native-candidate-restored").write_text(
+    f"recovered_files={len(items)}\nlast_path={items[-1]['path']}\n",
+    encoding="utf-8",
+)
+print(f"recovered_payload_files={len(items)}")
 PY
 
 git config user.name "github-actions[bot]"
