@@ -3,7 +3,7 @@ name: humanize-rlcr
 description: Run Humanize's Codex-native implementation and independent review loop with runtime-selected visible worker, researcher, and reviewer child threads.
 ---
 
-# Humanize RLCR for Codex
+# Humanize Codex-native workflow: RLCR
 
 Use this skill to implement a Humanize plan, continue an active native run, or review the current branch until blocking findings are resolved. The current Codex root thread is the coordinator. It owns state, delegation, integration, and final reporting; it does not perform the assigned implementation or independent reviews itself.
 

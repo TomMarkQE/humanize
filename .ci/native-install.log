@@ -45,9 +45,7 @@ PASS: unified --target codex does not create hooks.json
 PASS: combined install keeps legacy Kimi RLCR assets
 PASS: combined install keeps native Codex RLCR assets
 PASS: combined install gives Kimi the legacy provider skill
-FAIL: combined install gives Codex the native coordinator skill
-  Expected: Codex-native workflow
-  Got: not found in /tmp/tmp.dUxKjLtGrh/both/codex-skills/humanize-rlcr/SKILL.md
+PASS: combined install gives Codex the native coordinator skill
 PASS: combined install preserves Kimi selector shim
 PASS: combined selector shim still targets Kimi
 PASS: combined install rejects a shared provider skill directory
@@ -70,5 +68,5 @@ PASS: Codex uninstall preserves a Kimi-owned selector shim
 PASS: uninstall preserves unrelated Stop hook
 PASS: uninstall removes ownership manifest
 
-Passed: 68
-Failed: 1
+Passed: 69
+Failed: 0

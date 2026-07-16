@@ -1,2 +1,2 @@
-skills_exit=1
-install_exit=1
+skills_exit=0
+install_exit=0

@@ -40,14 +40,14 @@ PASS: gen-plan preserves validator
 PASS: gen-plan preserves output schema
 PASS: refine-plan delegates only research_request work
 PASS: refine-plan requires useful parent work before join
-FAIL: refine-plan preserves atomic output behavior
+PASS: refine-plan preserves atomic output behavior
 PASS: refine-plan preserves validator
 PASS: refine-plan preserves QA ledger ownership
 PASS: RLCR owns native role humanize_worker
 PASS: RLCR owns native role humanize_researcher
 PASS: RLCR owns native role humanize_implementation_reviewer
 PASS: RLCR owns native role humanize_code_reviewer
-FAIL: RLCR requires real tool parameter overrides
+PASS: RLCR requires real tool parameter overrides
 PASS: RLCR parent continues useful work during research
 PASS: RLCR parent continues useful work during implementation
 PASS: RLCR uses independent implementation review thread
@@ -86,9 +86,9 @@ PASS: installed agent exists: humanize-worker
 PASS: installed agent exists: humanize-researcher
 PASS: installed agent exists: humanize-implementation-reviewer
 PASS: installed agent exists: humanize-code-reviewer
-FAIL: installed RLCR preserves runtime override contract
+PASS: installed RLCR preserves runtime override contract
 PASS: installed gen-plan preserves parallel parent work
-FAIL: installed refine-plan preserves transaction contract
+PASS: installed refine-plan preserves transaction contract
 
-Passed: 87
-Failed: 4
+Passed: 91
+Failed: 0
