@@ -7,20 +7,35 @@ on:
     branches: ['**']
 
 jobs:
-  codex-native-targeted:
+  codex-native-skills:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Test native Skill contracts and install copy
+        run: bash tests/test-codex-native-skills.sh
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y jq
+  codex-native-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Test native deterministic state machine
+        run: bash tests/test-codex-native-runtime.sh
 
-      - name: Run Codex-native tests
-        run: |
-          bash tests/test-codex-native-skills.sh
-          bash tests/test-codex-native-runtime.sh
-          bash tests/test-codex-hook-install.sh
+  codex-native-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Test native install and migration
+        run: bash tests/test-codex-hook-install.sh
 
   run-all-tests:
     runs-on: ubuntu-latest
@@ -41,6 +56,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Verify fail-closed runner with system Bash
         run: |
