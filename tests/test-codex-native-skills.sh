@@ -41,14 +41,14 @@ contains "$GEN" 'Acceptance Criteria' 'gen-plan preserves output schema'
 
 contains "$REFINE" 'research_request' 'refine-plan delegates only research_request work'
 contains "$REFINE" 'Parent work while research runs' 'refine-plan requires useful parent work before join'
-contains "$REFINE" 'atomic replace' 'refine-plan preserves atomic output behavior'
+contains "$REFINE" 'atomically replace destinations' 'refine-plan preserves atomic output behavior'
 contains "$REFINE" 'validate-refine-plan-io.sh' 'refine-plan preserves validator'
 contains "$REFINE" 'exactly one ledger row per raw `CMT-N`' 'refine-plan preserves QA ledger ownership'
 
 for role in humanize_worker humanize_researcher humanize_implementation_reviewer humanize_code_reviewer; do
   contains "$RLCR" "$role" "RLCR owns native role $role"
 done
-contains "$RLCR" 'actual `spawn_agent` fields' 'RLCR requires real tool parameter overrides'
+contains "$RLCR" 'pass the requested `model` and `reasoning_effort` as actual fields' 'RLCR requires real tool parameter overrides'
 contains "$RLCR" 'While research runs' 'RLCR parent continues useful work during research'
 contains "$RLCR" 'While the worker runs' 'RLCR parent continues useful work during implementation'
 contains "$RLCR" 'fresh `humanize_implementation_reviewer`' 'RLCR uses independent implementation review thread'
@@ -90,9 +90,9 @@ done
 for agent in humanize-worker humanize-researcher humanize-implementation-reviewer humanize-code-reviewer; do
   [[ -f "$TMP/agents/$agent.toml" ]] && pass "installed agent exists: $agent" || fail "installed agent exists: $agent"
 done
-contains "$TMP/skills/humanize-rlcr/SKILL.md" 'actual `spawn_agent` fields' 'installed RLCR preserves runtime override contract'
+contains "$TMP/skills/humanize-rlcr/SKILL.md" 'pass the requested `model` and `reasoning_effort` as actual fields' 'installed RLCR preserves runtime override contract'
 contains "$TMP/skills/humanize-gen-plan/SKILL.md" 'Parent work while the child runs' 'installed gen-plan preserves parallel parent work'
-contains "$TMP/skills/humanize-refine-plan/SKILL.md" 'atomic replace' 'installed refine-plan preserves transaction contract'
+contains "$TMP/skills/humanize-refine-plan/SKILL.md" 'atomically replace destinations' 'installed refine-plan preserves transaction contract'
 
 printf '\nPassed: %d\nFailed: %d\n' "$PASSED" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
