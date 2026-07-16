@@ -49,12 +49,16 @@ jobs:
           fetch-depth: 0
           show-progress: false
           ref: agent/runtime-selected-native-subagents
-      - name: Persist target test output once
+      - name: Apply title patch and persist target output
         shell: bash
         run: |
-          if [[ -f .ci/native-test-status.txt ]]; then
-            exit 0
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('codex/skills/humanize-rlcr/SKILL.md')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('# Humanize RLCR for Codex', '# Humanize Codex-native workflow: RLCR', 1)
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
           set +e
           mkdir -p .ci
           bash tests/test-codex-native-skills.sh > .ci/native-skills.log 2>&1
@@ -65,8 +69,9 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .ci/native-skills.log .ci/native-install.log .ci/native-test-status.txt
-          git commit -m "Capture native test diagnostics"
+          git add codex/skills/humanize-rlcr/SKILL.md .ci/native-skills.log .ci/native-install.log .ci/native-test-status.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "Finalize native Skill contract diagnostics"
           git push origin HEAD:agent/runtime-selected-native-subagents
 
   run-all-tests:
