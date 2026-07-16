@@ -7,6 +7,36 @@ on:
     branches: ['**']
 
 jobs:
+  codex-native-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Test native Skill contracts and install copy
+        run: bash tests/test-codex-native-skills.sh
+
+  codex-native-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Test native deterministic state machine
+        run: bash tests/test-codex-native-runtime.sh
+
+  codex-native-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Test native install and migration
+        run: bash tests/test-codex-hook-install.sh
+
   run-all-tests:
     runs-on: ubuntu-latest
     steps:
@@ -17,6 +47,30 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y zsh jq
 
       - name: Run all tests
+        shell: bash
         run: |
           chmod +x tests/run-all-tests.sh
-          ./tests/run-all-tests.sh
+          log_file="$RUNNER_TEMP/humanize-all-tests.log"
+          if ./tests/run-all-tests.sh >"$log_file" 2>&1; then
+            tail -120 "$log_file"
+          else
+            echo "Full regression suite failed; showing only failure details."
+            awk '
+              /^Failed suite details$/ { show=1 }
+              show { print }
+            ' "$log_file"
+            exit 1
+          fi
+
+  bash-3-runner-contract:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Verify fail-closed runner with system Bash
+        run: |
+          /bin/bash --version | head -1
+          /bin/bash tests/test-test-runner.sh
