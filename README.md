@@ -61,7 +61,9 @@ Use $humanize-consult to investigate one bounded repository question.
 
 Subagent model and reasoning effort are selected at invocation time rather than stored in Humanize. When an explicit override is requested, the root coordinator must pass `model` and `reasoning_effort` as actual `spawn_agent` fields and use a non-full-history fork. When no override is requested, both fields are omitted so the child inherits the current parent selection.
 
-See [Install for Codex](docs/install-for-codex.md) for migration, verification, native roles, runtime states, and troubleshooting.
+Effective child permissions also inherit from the live parent task. The worker is the only Humanize role authorized to write repository files. Researcher and reviewer roles are behaviorally no-write; before their results are integrated, the coordinator verifies that branch, HEAD, index, tracked status, and untracked non-Humanize files still match the recorded baseline. Humanize does not claim that custom role TOML provides a separately enforced hard sandbox.
+
+See [Install for Codex](docs/install-for-codex.md) for migration, verification, native roles, runtime states, no-write verification, and troubleshooting.
 
 ### Kimi
 
@@ -101,7 +103,7 @@ See [Install for Kimi](docs/install-for-kimi.md). The Kimi provider bundle conti
 
 6. **Monitor progress (in another terminal, not inside Claude Code)**:
    ```bash
-   source <path/to/humanize>/scripts/humanize.sh
+   source <path/to-humanize>/scripts/humanize.sh
    humanize monitor rlcr
    humanize monitor skill
    humanize monitor codex
