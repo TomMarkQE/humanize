@@ -37,42 +37,6 @@ jobs:
       - name: Test native install and migration
         run: bash tests/test-codex-hook-install.sh
 
-  capture-full-regression-diagnostics:
-    if: github.event_name == 'push' && github.ref_name == 'agent/runtime-selected-native-subagents'
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout feature branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          show-progress: false
-          ref: agent/runtime-selected-native-subagents
-      - name: Persist failure details once
-        shell: bash
-        run: |
-          if [[ -f .ci/full-regression-failures.log ]]; then
-            exit 0
-          fi
-          sudo apt-get update >/dev/null
-          sudo apt-get install -y zsh jq >/dev/null
-          log_file="$RUNNER_TEMP/humanize-all-tests.log"
-          set +e
-          ./tests/run-all-tests.sh >"$log_file" 2>&1
-          exit_code=$?
-          set -e
-          mkdir -p .ci
-          {
-            printf 'exit_code=%s\n' "$exit_code"
-            awk '/^Failed suite details$/ { show=1 } show { print }' "$log_file"
-          } > .ci/full-regression-failures.log
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .ci/full-regression-failures.log
-          git commit -m "Capture full regression failure details"
-          git push origin HEAD:agent/runtime-selected-native-subagents
-
   run-all-tests:
     runs-on: ubuntu-latest
     steps:
