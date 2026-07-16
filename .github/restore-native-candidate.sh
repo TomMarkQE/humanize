@@ -14,6 +14,7 @@ import subprocess
 
 root = pathlib.Path.cwd().resolve()
 source_commit = "803757b49564b71fe3eda94644762afa7650f7cb"
+skipped_paths = {".github/workflows/run-all-tests.yml"}
 parts = [
     ".humanize-native-json.part-00",
     ".humanize-native-json.part-01",
@@ -63,7 +64,10 @@ while True:
 if len(items) < 18:
     raise SystemExit(f"too few complete payload files recovered: {len(items)}")
 
+written = 0
 for item in items:
+    if item["path"] in skipped_paths:
+        continue
     relative = pathlib.PurePosixPath(item["path"])
     if relative.is_absolute() or ".." in relative.parts:
         raise SystemExit(f"unsafe payload path: {relative}")
@@ -73,12 +77,13 @@ for item in items:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(item["content"], encoding="utf-8", newline="\n")
     os.chmod(target, item.get("mode", 0o644))
+    written += 1
 
 (root / ".native-candidate-restored").write_text(
-    f"recovered_files={len(items)}\nlast_path={items[-1]['path']}\n",
+    f"recovered_files={written}\nlast_complete_path={items[-1]['path']}\n",
     encoding="utf-8",
 )
-print(f"recovered_payload_files={len(items)}")
+print(f"recovered_payload_files={written};skipped_workflow_files={len(skipped_paths)}")
 PY
 
 git config user.name "github-actions[bot]"
