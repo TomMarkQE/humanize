@@ -54,8 +54,11 @@ jobs:
           if ./tests/run-all-tests.sh >"$log_file" 2>&1; then
             tail -120 "$log_file"
           else
-            echo "Full regression suite failed; showing the detailed tail."
-            tail -700 "$log_file"
+            echo "Full regression suite failed; showing only failure details."
+            awk '
+              /^Failed suite details$/ { show=1 }
+              show { print }
+            ' "$log_file"
             exit 1
           fi
 
