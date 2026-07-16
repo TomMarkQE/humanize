@@ -1,38 +1,46 @@
 # Humanize
 
-**Current Version: 2.0.0**
+**Current Version: 1.16.0**
 
 > Derived from the [GAAC (GitHub-as-a-Context)](https://github.com/SihaoLiu/gaac) project.
 
-Humanize provides goal-driven implementation, independent review, and iterative correction workflows for Codex, Claude Code, and Kimi.
+Humanize provides iterative development with independent AI review. Claude Code and Kimi retain the existing provider workflow; Codex can use a native root-coordinator and visible subagent workflow.
 
-## Codex-native workflow
+## What is RLCR?
 
-Humanize 2.0 makes the Codex path a native Agent/Sub-agent workflow. The current Codex task is the coordinator, while implementation, investigation, plan-alignment review, and final code review run in visible native child threads. Users can inspect those threads in Codex App, CLI, and IDE.
+**RLCR** stands for **Ralph-Loop with Codex Review**, inspired by the official ralph-loop plugin and enhanced with independent review. The name also reads as **Reinforcement Learning with Code Review** -- reflecting the iterative cycle where AI-generated code is continuously refined through external feedback.
 
-The Codex-native path does not launch `codex exec` or `codex review` from a shell and does not use a Stop hook to obtain model output. Its scripts are limited to deterministic work such as Git validation, state persistence, input checks, and reviewer-result parsing.
+## Core Concepts
 
-The loop still has the same product outcome:
+- **Iteration over Perfection** -- Instead of expecting perfect output in one shot, Humanize uses continuous feedback loops where issues are caught early and refined incrementally.
+- **Independent Review** -- Implementation and review are owned by separate model contexts.
+- **Begin with the End in Mind** -- Before the loop starts, Humanize verifies that the plan and acceptance criteria are actionable. ([Details](docs/usage.md#begin-with-the-end-in-mind))
+- **Provider Isolation** -- The Codex-native installation is separate from the existing Claude Code and Kimi workflow, so one provider path does not silently change another.
 
-1. A worker implements the current mainline objective and records test evidence.
-2. A separate implementation reviewer checks the plan and acceptance criteria.
-3. Findings return to another worker round until implementation is complete.
-4. A separate code reviewer inspects the branch diff and emits blocking `[P0-9]` findings or passes it.
-5. Humanize ends with an explicit complete, blocked, failed, or cancelled state.
+## How It Works
 
-## Provider behavior
+<p align="center">
+  <img src="docs/images/rlcr-workflow.svg" alt="RLCR Workflow" width="680"/>
+</p>
 
-| Provider | Orchestration | Model work visibility |
-|----------|---------------|-----------------------|
-| Codex | Native Skills plus native custom agents | Child agent threads are visible and openable in the current Codex task |
-| Claude Code | Existing plugin commands, hooks, and optional Claude Agent Teams | Claude provider behavior is unchanged |
-| Kimi | Existing installed Skill bundle and deterministic runtime | Kimi provider behavior is unchanged |
-
-Claude Code and Kimi retain the legacy provider workflow for compatibility. The Codex installer does not install that hook-driven reviewer path.
+The workflow still converges through implementation, independent plan/alignment review, independent code review, and corrective rounds. On Codex, the current root task coordinates visible native children for implementation, bounded investigation, implementation review, and final code review. The Codex-native path does not launch nested `codex exec` or `codex review` processes and does not use a Stop hook to obtain model output.
 
 ## Install
 
-### Codex
+### Claude Code
+
+```bash
+# Add PolyArch marketplace
+/plugin marketplace add PolyArch/humanize
+# If you want to use development branch for experimental features
+/plugin marketplace add PolyArch/humanize#dev
+# Then install humanize plugin
+/plugin install humanize@PolyArch
+```
+
+See [Install for Claude Code](docs/install-for-claude.md). The existing Claude commands, hooks, model configuration, and optional Agent Teams behavior remain unchanged.
+
+### Codex-native path
 
 ```bash
 git clone https://github.com/PolyArch/humanize.git
@@ -40,18 +48,20 @@ cd humanize
 ./scripts/install-skills-codex.sh
 ```
 
-This installs Skills under `~/.agents/skills`, custom agents under `~/.codex/agents`, and a deterministic runtime under the installed `humanize` Skill. It also removes stale Humanize-managed Codex Stop hooks and duplicate legacy Skill copies while preserving unrelated user hooks, agents, and Kimi-owned helper shims.
+This installs native Humanize Skills under `~/.agents/skills`, custom roles under `~/.codex/agents`, and a deterministic RLCR state runtime. It removes only Humanize-managed legacy Codex hooks and stale Humanize copies; it preserves unrelated user configuration and the Claude/Kimi provider paths.
 
-See [Install for Codex](docs/install-for-codex.md) for prerequisites, migration, verification, custom paths, failure states, and uninstall instructions.
-
-### Claude Code
+After restarting Codex, use the Skills from the current repository task:
 
 ```text
-/plugin marketplace add PolyArch/humanize
-/plugin install humanize@PolyArch
+Use $humanize-gen-plan with --input draft.md --output docs/plan.md.
+Use $humanize-refine-plan with --input docs/plan.md.
+Use $humanize-rlcr to implement docs/plan.md.
+Use $humanize-consult to investigate one bounded repository question.
 ```
 
-See [Install for Claude Code](docs/install-for-claude.md).
+Subagent model and reasoning effort are selected at invocation time rather than stored in Humanize. When an explicit override is requested, the root coordinator must pass `model` and `reasoning_effort` as actual `spawn_agent` fields and use a non-full-history fork. When no override is requested, both fields are omitted so the child inherits the current parent selection.
+
+See [Install for Codex](docs/install-for-codex.md) for migration, verification, native roles, runtime states, and troubleshooting.
 
 ### Kimi
 
@@ -59,45 +69,59 @@ See [Install for Claude Code](docs/install-for-claude.md).
 ./scripts/install-skills-kimi.sh
 ```
 
-See [Install for Kimi](docs/install-for-kimi.md).
+See [Install for Kimi](docs/install-for-kimi.md). The Kimi provider bundle continues to use the existing shared Skills and runtime.
 
-## Codex quick start
+## Claude Code Quick Start
 
-Ask Codex to use the installed Skill:
+1. **Generate an idea draft** from a loose thought (optional — skip if you already have a draft):
+   ```bash
+   /humanize:gen-idea "add undo/redo to the editor"
+   ```
+   Output goes to `.humanize/ideas/<slug>-<timestamp>.md` by default. Pass a `.md` path to expand existing rough notes. `--n` controls how many parallel directions explore the idea (default 6).
 
-```text
-Use $humanize-rlcr to implement docs/plan.md.
-```
+2. **Generate a plan** from your draft:
+   ```bash
+   /humanize:gen-plan --input draft.md --output docs/plan.md
+   ```
 
-Review-only mode:
+3. **Refine an annotated plan** before implementation when reviewers add comments (`CMT:` ... `ENDCMT`, `<cmt>` ... `</cmt>`, or `<comment>` ... `</comment>`):
+   ```bash
+   /humanize:refine-plan --input docs/plan.md
+   ```
 
-```text
-Use $humanize-rlcr --review-only --base-ref main.
-```
+4. **Run the loop**:
+   ```bash
+   /humanize:start-rlcr-loop docs/plan.md
+   ```
 
-One-shot independent analysis:
+5. **Consult Gemini** for deep web research (requires Gemini CLI):
+   ```bash
+   /humanize:ask-gemini What are the latest best practices for X?
+   ```
 
-```text
-Use $humanize-consult to trace the authentication failure path and identify the safest fix.
-```
+6. **Monitor progress (in another terminal, not inside Claude Code)**:
+   ```bash
+   source <path/to/humanize>/scripts/humanize.sh
+   humanize monitor rlcr
+   humanize monitor skill
+   humanize monitor codex
+   humanize monitor gemini
+   ```
 
-During an RLCR run, the root task spawns `humanize_worker`, `humanize_implementation_reviewer`, `humanize_code_reviewer`, and, when needed, `humanize_researcher` child threads. The default Codex depth of one is sufficient because only the root coordinator delegates.
+## Monitor Dashboard
 
-## Claude Code quick start
-
-```text
-/humanize:gen-plan --input draft.md --output docs/plan.md
-/humanize:refine-plan --input docs/plan.md
-/humanize:start-rlcr-loop docs/plan.md
-```
+<p align="center">
+  <img src="docs/images/monitor.png" alt="Humanize Monitor" width="680"/>
+</p>
 
 ## Documentation
 
-- [Usage Guide](docs/usage.md) -- Provider-aware commands, lifecycle, states, and options
-- [Install for Codex](docs/install-for-codex.md) -- Native Skills and custom-agent installation
-- [Install for Claude Code](docs/install-for-claude.md) -- Claude plugin installation
-- [Install for Kimi](docs/install-for-kimi.md) -- Kimi Skill installation
-- [Bitter Lesson Workflow](docs/bitlesson.md) -- Project memory and legacy provider selector routing
+- [Usage Guide](docs/usage.md) -- Provider-aware commands, options, and lifecycle
+- [Install for Claude Code](docs/install-for-claude.md) -- Existing Claude Code workflow
+- [Install for Codex](docs/install-for-codex.md) -- Native Skills, roles, migration, and verification
+- [Install for Kimi](docs/install-for-kimi.md) -- Existing Kimi provider workflow
+- [Configuration](docs/usage.md#configuration) -- Shared legacy-provider configuration
+- [Bitter Lesson Workflow](docs/bitlesson.md) -- Project memory, selector routing, and delta validation
 
 ## License
 
