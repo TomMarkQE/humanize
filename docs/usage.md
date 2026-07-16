@@ -18,12 +18,14 @@ Use $humanize-rlcr --review-only --base-ref main.
 
 The current Codex thread is the root coordinator. It delegates to separate native child threads:
 
-1. `humanize_worker` implements or fixes one bounded mainline objective and commits it.
-2. `humanize_implementation_reviewer` independently checks plan alignment, acceptance criteria, and test evidence.
-3. `humanize_code_reviewer` independently reviews the branch diff and returns blocking `[P0-9]` findings or passes it.
-4. `humanize_researcher` answers bounded read-only questions requested by the root coordinator.
+1. `humanize_worker` implements or fixes one bounded mainline objective and commits it. It is the only Humanize role authorized to change repository files.
+2. `humanize_implementation_reviewer` independently checks plan alignment, acceptance criteria, and test evidence under a mandatory no-write contract.
+3. `humanize_code_reviewer` independently reviews the branch diff and returns blocking `[P0-9]` findings or passes it under a mandatory no-write contract.
+4. `humanize_researcher` answers bounded no-write questions requested by the root coordinator.
 
-Only the root thread delegates. This prevents recursive fan-out and works with a subagent depth of one. Writing agents run sequentially; independent read-only research may overlap only when questions and evidence scopes do not overlap.
+Only the root thread delegates. This prevents recursive fan-out and works with a subagent depth of one. Effective child sandbox and approval behavior inherit from the live parent task. No-write roles therefore rely on explicit behavioral instructions plus observable branch/HEAD/index/working-tree verification rather than a claim of separately enforced hard isolation.
+
+A worker never overlaps with a researcher or reviewer. Independent no-write research may overlap only with other no-write research when questions and evidence scopes do not overlap. The root can continue useful reading, reasoning, state inspection, and acceptance preparation while no-write children run, but it must not modify repository state until their baselines are verified.
 
 ### Codex options
 
@@ -63,6 +65,8 @@ The selected values must appear in the real tool parameters, not only in the chi
 
 The deterministic runtime stores state under `.humanize/rlcr/<run>/`. Initialization requires a clean non-Humanize working tree; an untracked source plan is the only allowed initial exception. A worker round must end with a new descendant commit, a clean non-Humanize working tree, a structured summary, and recorded test evidence. Per-loop file locks serialize state transitions.
 
+Before every researcher or reviewer, the coordinator records the current branch, exact `HEAD`, staged/unstaged tracked-file status, and untracked non-Humanize files. It verifies the same state after collecting the child and before saving/integrating its result. An unexplained change prevents review recording or workflow advancement and is reported as a child failure or permission violation.
+
 The implementation reviewer returns:
 
 ```text
@@ -78,22 +82,23 @@ The code reviewer returns:
 HUMANIZE_CODE_REVIEW: changes_required|pass|blocked
 ```
 
-Every blocking finding under `changes_required` must start with `[P0]` through `[P9]`. A `pass` response cannot contain an unresolved priority marker. Humanize reports complete only after the deterministic state machine accepts that independent `pass` result.
+Every blocking finding under `changes_required` must start with `[P0]` through `[P9]`. A `pass` response cannot contain an unresolved priority marker. Humanize reports complete only after the deterministic state machine accepts a baseline-verified independent `pass` result.
 
-The coordinator must perform useful non-overlapping work while a child runs, must not duplicate the delegated task, and must collect and integrate every required child result before a dependent edit, plan/QA write, state transition, or final report.
+The coordinator must perform useful non-overlapping work while a child runs, must not duplicate the delegated task, and must collect, baseline-check, verify, and integrate every required child result before a dependent edit, plan/QA write, state transition, or final report.
 
 ### Codex failure handling
 
 The native runtime fails closed and emits JSON errors with non-zero exits. Important states and reasons include:
 
 - `agent_unavailable`: a required custom role or requested override cannot be used;
-- `permission_denied`: inherited sandbox or approval policy blocks required work;
+- `permission_denied`: inherited sandbox or approval policy blocks required work or a role violates its permission boundary;
 - `cancelled` or `interrupted`: the user or client stopped the workflow;
 - `working_tree_dirty`: a worker left non-Humanize changes uncommitted;
 - `review_contract_invalid`: reviewer output omitted or contradicted its stable marker;
 - `tracked_plan_changed` or `plan_snapshot_changed`: plan immutability was violated;
 - `branch_changed` or `history_rewritten`: the branch moved away from its starting branch or rewrote prior checkpoints;
 - `state_corrupt` or `lock_unavailable`: deterministic state cannot be trusted or serialized safely;
+- `agent_failed`: a child returned unusable evidence or a no-write child changed repository state;
 - `max_rounds_exhausted`: the loop did not converge in its configured bound.
 
 There is no hidden `codex exec` or `codex review` fallback. State files provide deterministic evidence; actual model work remains visible in native child threads.
@@ -106,7 +111,7 @@ For a bounded independent analysis without the full loop:
 Use $humanize-consult to trace the authentication failure path and recommend the safest repair.
 ```
 
-This creates one read-only `humanize_researcher` child thread. It replaces the former Codex-side use of `ask-codex.sh`.
+This creates one behaviorally no-write `humanize_researcher` child thread. Its effective permissions inherit from the parent, and the root verifies the repository baseline before integrating the result. It replaces the former Codex-side use of `ask-codex.sh`.
 
 ## Planning Skills
 
@@ -122,7 +127,7 @@ Refine a plan containing `CMT: ... ENDCMT`, `<cmt>...</cmt>`, or `<comment>...</
 Use $humanize-refine-plan with --input docs/plan.md.
 ```
 
-The installed validators remain deterministic. Repository investigation may be delegated only when bounded independent evidence is useful. The root continues non-overlapping planning/comment work and joins the child before final scope, ACs, research-dependent edits, QA, convergence, or atomic writes.
+The installed validators remain deterministic. Repository investigation may be delegated only when bounded independent evidence is useful. The root continues non-overlapping no-write planning/comment work, verifies the repository baseline, and joins the child before final scope, ACs, research-dependent edits, QA, convergence, or atomic writes.
 
 Common refine options:
 
@@ -171,7 +176,7 @@ The existing layered configuration remains available to Claude Code and Kimi:
 
 Keys such as `codex_model`, `codex_effort`, `bitlesson_model`, `provider_mode`, and `agent_teams` belong to legacy provider workflows. They do not select a Codex-native child model or effort.
 
-Codex native role TOML files define role instructions and sandbox intent, not model policy. Model and reasoning selection belongs to each live invocation and is represented directly in the child tool call when explicitly chosen.
+Codex native role TOML files define role instructions and metadata, not effective sandbox policy or model policy. Effective permissions inherit from the live parent task. Model and reasoning selection belongs to each live invocation and is represented directly in the child tool call when explicitly chosen.
 
 ## Monitoring and evidence
 
@@ -189,4 +194,4 @@ Codex-native users should use the Codex client to inspect active and completed c
 
 Every Codex installer entrypoint routes to the native bundle. Installation removes old Humanize-managed Codex Stop hooks, duplicate `<CODEX_HOME>/skills` copies, and a managed legacy selector shim while preserving unrelated assets and the Claude/Kimi provider paths. The shell reviewer is not retained as a Codex fallback.
 
-See [Install for Codex](install-for-codex.md) for detailed migration, runtime override, forward-test, troubleshooting, and uninstall steps.
+See [Install for Codex](install-for-codex.md) for detailed migration, runtime override, no-write verification, forward-test, troubleshooting, and uninstall steps.
