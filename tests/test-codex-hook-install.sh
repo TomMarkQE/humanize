@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-#
-# Tests for Codex-native hook installation and merge behavior.
-#
-
+# Tests for provider-specific native Codex installation and legacy hook cleanup.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -12,59 +9,27 @@ source "$SCRIPT_DIR/test-helpers.sh"
 INSTALL_SCRIPT="$PROJECT_ROOT/scripts/install-skill.sh"
 
 echo "=========================================="
-echo "Codex Hook Install Tests"
+echo "Codex Native Install Tests"
 echo "=========================================="
 echo ""
 
-if [[ ! -x "$INSTALL_SCRIPT" ]]; then
-    echo "FATAL: install-skill.sh not found at $INSTALL_SCRIPT" >&2
-    exit 1
-fi
-
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "FATAL: python3 is required for this test" >&2
-    exit 1
-fi
+[[ -x "$INSTALL_SCRIPT" ]] || { echo "FATAL: install-skill.sh is not executable" >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo "FATAL: python3 is required" >&2; exit 1; }
 
 setup_test_dir
-
 FAKE_BIN="$TEST_DIR/bin"
 CODEX_HOME_DIR="$TEST_DIR/codex-home"
+CODEX_SKILLS_DIR="$CODEX_HOME_DIR/skills"
 HOOKS_FILE="$CODEX_HOME_DIR/hooks.json"
-FEATURE_LOG="$TEST_DIR/codex-features.log"
+FEATURE_LOG="$TEST_DIR/codex-invocations.log"
 XDG_CONFIG_HOME_DIR="$TEST_DIR/xdg-config"
-HUMANIZE_USER_CONFIG="$XDG_CONFIG_HOME_DIR/humanize/config.json"
 COMMAND_BIN_DIR="$TEST_DIR/command-bin"
 mkdir -p "$FAKE_BIN" "$CODEX_HOME_DIR" "$COMMAND_BIN_DIR"
 
 cat > "$FAKE_BIN/codex" <<'EOF'
 #!/usr/bin/env bash
-set -euo pipefail
-
-if [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
-    cat <<'LIST'
-codex_hooks                      under development  false
-LIST
-    exit 0
-fi
-
-if [[ "${1:-}" == "features" && "${2:-}" == "enable" && "${3:-}" == "codex_hooks" ]]; then
-    printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-}" >> "${TEST_CODEX_FEATURE_LOG:?}"
-    mkdir -p "${CODEX_HOME:?}"
-    : > "${CODEX_HOME}/.codex-hooks-enabled"
-    exit 0
-fi
-
-if [[ "${1:-}" == "exec" ]]; then
-    cat <<'OUT'
-LESSON_IDS: NONE
-RATIONALE: No matching lessons found (fake codex exec).
-OUT
-    exit 0
-fi
-
-echo "unexpected fake codex invocation: $*" >&2
-exit 1
+printf '%s\n' "$*" >> "${TEST_CODEX_INVOCATION_LOG:?}"
+exit 91
 EOF
 chmod +x "$FAKE_BIN/codex"
 
@@ -90,11 +55,7 @@ cat > "$HOOKS_FILE" <<'EOF'
             "type": "command",
             "command": "/tmp/old/skills/humanize/hooks/loop-codex-stop-hook.sh",
             "timeout": 30
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "/custom/keep-me.sh",
@@ -107,228 +68,185 @@ cat > "$HOOKS_FILE" <<'EOF'
 }
 EOF
 
-PATH="$FAKE_BIN:$PATH" TEST_CODEX_FEATURE_LOG="$FEATURE_LOG" XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
+PATH="$FAKE_BIN:$PATH" \
+TEST_CODEX_INVOCATION_LOG="$FEATURE_LOG" \
+XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
     "$INSTALL_SCRIPT" \
     --target codex \
     --codex-config-dir "$CODEX_HOME_DIR" \
-    --codex-skills-dir "$CODEX_HOME_DIR/skills" \
+    --codex-skills-dir "$CODEX_SKILLS_DIR" \
     --command-bin-dir "$COMMAND_BIN_DIR" \
     > "$TEST_DIR/install.log" 2>&1
 
-if [[ -f "$CODEX_HOME_DIR/skills/humanize/SKILL.md" ]]; then
-    pass "Codex install syncs Humanize skill bundle"
+for skill in humanize humanize-gen-plan humanize-refine-plan humanize-rlcr; do
+    if [[ -f "$CODEX_SKILLS_DIR/$skill/SKILL.md" ]]; then
+        pass "Codex install syncs provider-specific $skill skill"
+    else
+        fail "Codex install syncs provider-specific $skill skill" "$CODEX_SKILLS_DIR/$skill/SKILL.md" "missing"
+    fi
+done
+
+if grep -q "Humanize Native RLCR Coordinator" "$CODEX_SKILLS_DIR/humanize-rlcr/SKILL.md"; then
+    pass "Codex install selects the native coordinator skill"
 else
-    fail "Codex install syncs Humanize skill bundle" "skills/humanize/SKILL.md exists" "missing"
+    fail "Codex install selects the native coordinator skill"
 fi
 
-if [[ -f "$CODEX_HOME_DIR/skills/humanize-rlcr/SKILL.md" ]]; then
-    pass "Codex install keeps humanize-rlcr entrypoint skill"
+if [[ -f "$CODEX_SKILLS_DIR/humanize/scripts/native-rlcr.py" ]]; then
+    pass "Codex install includes deterministic native runtime"
 else
-    fail "Codex install keeps humanize-rlcr entrypoint skill" "skills/humanize-rlcr/SKILL.md exists" "missing"
+    fail "Codex install includes deterministic native runtime"
 fi
 
-if [[ -f "$HOOKS_FILE" ]]; then
-    pass "Codex install writes hooks.json"
+if [[ ! -d "$CODEX_SKILLS_DIR/humanize/hooks" ]]; then
+    pass "Codex runtime does not install legacy hook scripts"
 else
-    fail "Codex install writes hooks.json" "$HOOKS_FILE exists" "missing"
+    fail "Codex runtime does not install legacy hook scripts" "no hooks directory" "present"
 fi
 
-if [[ -f "$CODEX_HOME_DIR/.codex-hooks-enabled" ]]; then
-    pass "Codex install enables codex_hooks feature"
+if [[ ! -s "$FEATURE_LOG" ]]; then
+    pass "Codex installer never invokes the Codex CLI"
 else
-    fail "Codex install enables codex_hooks feature" ".codex-hooks-enabled marker exists" "missing"
+    fail "Codex installer never invokes the Codex CLI" "empty invocation log" "$(cat "$FEATURE_LOG")"
 fi
 
-if [[ -f "$HUMANIZE_USER_CONFIG" ]]; then
-    pass "Codex install writes Humanize user config"
-else
-    fail "Codex install writes Humanize user config" "$HUMANIZE_USER_CONFIG exists" "missing"
-fi
-
-if [[ -x "$COMMAND_BIN_DIR/bitlesson-selector" ]]; then
-    pass "Codex install writes a PATH-ready bitlesson-selector shim"
-else
-    fail "Codex install writes a PATH-ready bitlesson-selector shim" "$COMMAND_BIN_DIR/bitlesson-selector exists" "missing"
-fi
-
-if [[ "$(jq -r '.bitlesson_model // empty' "$HUMANIZE_USER_CONFIG")" == "gpt-5.5" ]]; then
-    pass "Codex install seeds bitlesson_model with a Codex/OpenAI model"
-else
-    fail "Codex install seeds bitlesson_model with a Codex/OpenAI model" \
-        "gpt-5.5" "$(jq -c '.' "$HUMANIZE_USER_CONFIG" 2>/dev/null || echo MISSING)"
-fi
-
-if [[ "$(jq -r '.provider_mode // empty' "$HUMANIZE_USER_CONFIG")" == "codex-only" ]]; then
-    pass "Codex install marks Humanize user config as codex-only"
-else
-    fail "Codex install marks Humanize user config as codex-only" \
-        "codex-only" "$(jq -c '.' "$HUMANIZE_USER_CONFIG" 2>/dev/null || echo MISSING)"
-fi
-
-runtime_root="$CODEX_HOME_DIR/skills/humanize"
-PY_OUTPUT="$(
-    python3 - "$HOOKS_FILE" "$runtime_root" <<'PY'
+PY_OUTPUT="$(python3 - "$HOOKS_FILE" <<'PY'
 import json
 import pathlib
 import sys
 
-hooks_file = pathlib.Path(sys.argv[1])
-runtime_root = sys.argv[2]
-data = json.loads(hooks_file.read_text(encoding="utf-8"))
-
+data = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 commands = []
-for group in data["hooks"]["Stop"]:
+for group in data.get("hooks", {}).get("Stop", []):
     for hook in group.get("hooks", []):
-        command = hook.get("command")
-        if isinstance(command, str):
-            commands.append(command)
-
-expected = {
-    f"{runtime_root}/hooks/loop-codex-stop-hook.sh",
-}
-
-print("FOUND=" + ("1" if expected.issubset(set(commands)) else "0"))
+        if isinstance(hook, dict) and isinstance(hook.get("command"), str):
+            commands.append(hook["command"])
+print("MANAGED=" + str(sum("/humanize/hooks/" in value for value in commands)))
 print("KEEP=" + ("1" if "/custom/keep-me.sh" in commands else "0"))
-print("OLD=" + ("1" if any("/tmp/old/skills/humanize/hooks/" in cmd for cmd in commands) else "0"))
 print("SESSION=" + ("1" if data["hooks"]["SessionStart"][0]["hooks"][0]["command"] == "/custom/session-start.sh" else "0"))
-print("COUNT=" + str(sum(1 for cmd in commands if "/humanize/hooks/" in cmd)))
 PY
 )"
 
-if grep -q '^FOUND=1$' <<<"$PY_OUTPUT"; then
-    pass "Codex install adds managed Humanize Stop hook commands"
+if grep -q '^MANAGED=0$' <<<"$PY_OUTPUT"; then
+    pass "Codex install removes stale Humanize Stop hooks"
 else
-    fail "Codex install adds managed Humanize Stop hook commands" "FOUND=1" "$PY_OUTPUT"
+    fail "Codex install removes stale Humanize Stop hooks" "MANAGED=0" "$PY_OUTPUT"
 fi
-
 if grep -q '^KEEP=1$' <<<"$PY_OUTPUT"; then
     pass "Codex install preserves unrelated Stop hooks"
 else
     fail "Codex install preserves unrelated Stop hooks" "KEEP=1" "$PY_OUTPUT"
 fi
-
-if grep -q '^OLD=0$' <<<"$PY_OUTPUT"; then
-    pass "Codex install removes stale Humanize hook commands"
-else
-    fail "Codex install removes stale Humanize hook commands" "OLD=0" "$PY_OUTPUT"
-fi
-
 if grep -q '^SESSION=1$' <<<"$PY_OUTPUT"; then
-    pass "Codex install preserves SessionStart hooks"
+    pass "Codex install preserves unrelated hook groups"
 else
-    fail "Codex install preserves SessionStart hooks" "SESSION=1" "$PY_OUTPUT"
+    fail "Codex install preserves unrelated hook groups" "SESSION=1" "$PY_OUTPUT"
 fi
 
-if grep -q '^COUNT=1$' <<<"$PY_OUTPUT"; then
-    pass "Codex install writes exactly one managed Humanize Stop hook"
+if grep -q '{{HUMANIZE_RUNTIME_ROOT}}' "$CODEX_SKILLS_DIR/humanize-rlcr/SKILL.md"; then
+    fail "Installed Codex skill hydrates runtime root" "no placeholder" "placeholder remains"
 else
-    fail "Codex install writes exactly one managed Humanize Stop hook" "COUNT=1" "$PY_OUTPUT"
+    pass "Installed Codex skill hydrates runtime root"
 fi
 
-mkdir -p "$TEST_DIR/project"
-cat > "$TEST_DIR/project/bitlesson.md" <<'EOF'
-# BitLesson Knowledge Base
-## Entries
-<!-- placeholder -->
-EOF
-
-shim_output="$(
-    CLAUDE_PROJECT_DIR="$TEST_DIR/project" \
-    XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
-    PATH="$COMMAND_BIN_DIR:$FAKE_BIN:$PATH" \
-    "$COMMAND_BIN_DIR/bitlesson-selector" \
-    --task "Verify the shim dispatches into the installed runtime" \
-    --paths "README.md" \
-    --bitlesson-file "$TEST_DIR/project/bitlesson.md"
-)"
-
-if grep -q '^LESSON_IDS: NONE$' <<<"$shim_output"; then
-    pass "bitlesson-selector shim dispatches into installed runtime"
+if grep -qE '^(user-invocable|disable-model-invocation|hide-from-slash-command-tool):' "$CODEX_SKILLS_DIR/humanize-rlcr/SKILL.md"; then
+    fail "Installed Codex skill strips Claude-only frontmatter"
 else
-    fail "bitlesson-selector shim dispatches into installed runtime" "LESSON_IDS: NONE" "$shim_output"
+    pass "Installed Codex skill strips Claude-only frontmatter"
 fi
 
-PATH="$FAKE_BIN:$PATH" TEST_CODEX_FEATURE_LOG="$FEATURE_LOG" XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
-    "$INSTALL_SCRIPT" \
-    --target codex \
-    --codex-config-dir "$CODEX_HOME_DIR" \
-    --codex-skills-dir "$CODEX_HOME_DIR/skills" \
-    > "$TEST_DIR/install-2.log" 2>&1
-
-PY_OUTPUT_2="$(
-    python3 - "$HOOKS_FILE" <<'PY'
-import json
+NORMALIZED_COMPARE="$(python3 - "$PROJECT_ROOT/codex-skills/humanize-rlcr/SKILL.md" "$CODEX_SKILLS_DIR/humanize-rlcr/SKILL.md" "$CODEX_SKILLS_DIR/humanize" <<'PY'
 import pathlib
 import sys
 
-hooks_file = pathlib.Path(sys.argv[1])
-data = json.loads(hooks_file.read_text(encoding="utf-8"))
-
-commands = []
-for group in data["hooks"]["Stop"]:
-    for hook in group.get("hooks", []):
-        command = hook.get("command")
-        if isinstance(command, str):
-            commands.append(command)
-
-print(sum(1 for cmd in commands if "/humanize/hooks/" in cmd))
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+installed = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+runtime_root = sys.argv[3]
+source = source.replace("{{HUMANIZE_RUNTIME_ROOT}}", runtime_root)
+lines = []
+in_frontmatter = False
+frontmatter_done = False
+for line in source.splitlines():
+    if line.strip() == "---" and not frontmatter_done:
+        in_frontmatter = not in_frontmatter
+        if not in_frontmatter:
+            frontmatter_done = True
+        lines.append(line)
+        continue
+    if in_frontmatter and line.startswith(("user-invocable:", "disable-model-invocation:", "hide-from-slash-command-tool:")):
+        continue
+    lines.append(line)
+normalized = "\n".join(lines) + ("\n" if source.endswith("\n") else "")
+print("MATCH=1" if normalized == installed else "MATCH=0")
 PY
 )"
-
-if [[ "$PY_OUTPUT_2" == "1" ]]; then
-    pass "Codex install is idempotent for managed hook commands"
+if [[ "$NORMALIZED_COMPARE" == "MATCH=1" ]]; then
+    pass "Installed Codex skill matches the hydrated source skill"
 else
-    fail "Codex install is idempotent for managed hook commands" "1" "$PY_OUTPUT_2"
+    fail "Installed Codex skill matches the hydrated source skill" "MATCH=1" "$NORMALIZED_COMPARE"
 fi
 
-if [[ "$(wc -l < "$FEATURE_LOG" | tr -d ' ')" == "2" ]]; then
-    pass "Codex feature enable runs on each Codex install/update"
+HUMANIZE_USER_CONFIG="$XDG_CONFIG_HOME_DIR/humanize/config.json"
+if [[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["provider_mode"])' "$HUMANIZE_USER_CONFIG")" == "codex-only" ]]; then
+    pass "Codex install preserves provider_mode configuration"
 else
-    fail "Codex feature enable runs on each Codex install/update" "2 log entries" "$(cat "$FEATURE_LOG")"
+    fail "Codex install preserves provider_mode configuration"
 fi
 
-UNSUPPORTED_BIN="$TEST_DIR/bin-unsupported"
-UNSUPPORTED_HOME="$TEST_DIR/codex-home-unsupported"
-mkdir -p "$UNSUPPORTED_BIN" "$UNSUPPORTED_HOME"
-
-cat > "$UNSUPPORTED_BIN/codex" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
-    cat <<'LIST'
-apply_patch_freeform             under development  false
-LIST
-    exit 0
+if [[ -x "$COMMAND_BIN_DIR/bitlesson-selector" ]]; then
+    pass "Codex install keeps the BitLesson selector shim"
+else
+    fail "Codex install keeps the BitLesson selector shim"
 fi
 
-echo "unexpected fake codex invocation: $*" >&2
-exit 1
-EOF
-chmod +x "$UNSUPPORTED_BIN/codex"
-
-set +e
-PATH="$UNSUPPORTED_BIN:$PATH" \
+# Reinstall to verify hook cleanup and skill synchronization are idempotent.
+PATH="$FAKE_BIN:$PATH" \
+TEST_CODEX_INVOCATION_LOG="$FEATURE_LOG" \
+XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
     "$INSTALL_SCRIPT" \
     --target codex \
-    --codex-config-dir "$UNSUPPORTED_HOME" \
-    --codex-skills-dir "$UNSUPPORTED_HOME/skills" \
-    > "$TEST_DIR/install-unsupported.log" 2>&1
-UNSUPPORTED_EXIT=$?
-set -e
+    --codex-config-dir "$CODEX_HOME_DIR" \
+    --codex-skills-dir "$CODEX_SKILLS_DIR" \
+    --command-bin-dir "$COMMAND_BIN_DIR" \
+    > "$TEST_DIR/install-2.log" 2>&1
 
-if [[ "$UNSUPPORTED_EXIT" -ne 0 ]]; then
-    pass "Codex install rejects builds without native hooks support"
+if [[ ! -s "$FEATURE_LOG" ]] && ! grep -q '/humanize/hooks/' "$HOOKS_FILE"; then
+    pass "Codex native install is idempotent"
 else
-    fail "Codex install rejects builds without native hooks support" "non-zero exit" "exit 0"
+    fail "Codex native install is idempotent"
 fi
 
-if grep -q "codex_hooks feature" "$TEST_DIR/install-unsupported.log"; then
-    pass "Unsupported Codex failure explains missing codex_hooks feature"
+# Provider separation: Kimi keeps the existing shared skill while Codex gets the native skill.
+KIMI_DIR="$TEST_DIR/kimi-skills"
+CODEX_DIR_2="$TEST_DIR/codex-skills-2"
+CODEX_CONFIG_2="$TEST_DIR/codex-config-2"
+PATH="$FAKE_BIN:$PATH" \
+TEST_CODEX_INVOCATION_LOG="$FEATURE_LOG" \
+XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
+    "$INSTALL_SCRIPT" \
+    --target both \
+    --kimi-skills-dir "$KIMI_DIR" \
+    --codex-skills-dir "$CODEX_DIR_2" \
+    --codex-config-dir "$CODEX_CONFIG_2" \
+    --command-bin-dir "$COMMAND_BIN_DIR" \
+    > "$TEST_DIR/install-both.log" 2>&1
+
+if grep -q "native Stop hook" "$KIMI_DIR/humanize-rlcr/SKILL.md" && grep -q "Humanize Native RLCR Coordinator" "$CODEX_DIR_2/humanize-rlcr/SKILL.md"; then
+    pass "Provider-specific install preserves Kimi while enabling native Codex RLCR"
 else
-    fail "Unsupported Codex failure explains missing codex_hooks feature" \
-        "error mentioning codex_hooks feature" \
-        "$(cat "$TEST_DIR/install-unsupported.log")"
+    fail "Provider-specific install preserves Kimi while enabling native Codex RLCR"
 fi
 
-print_test_summary "Codex Hook Install Tests"
+if python3 "$PROJECT_ROOT/tests/test-native-subagent-skills.py" > "$TEST_DIR/native-skill-contracts.log" 2>&1; then
+    pass "Codex native skill delegation contracts pass"
+else
+    fail "Codex native skill delegation contracts pass" "success" "$(cat "$TEST_DIR/native-skill-contracts.log")"
+fi
+
+if python3 "$PROJECT_ROOT/tests/test-native-rlcr.py" > "$TEST_DIR/native-rlcr.log" 2>&1; then
+    pass "Codex native RLCR state-machine tests pass"
+else
+    fail "Codex native RLCR state-machine tests pass" "success" "$(cat "$TEST_DIR/native-rlcr.log")"
+fi
+
+print_test_summary "Codex Native Install Tests"
