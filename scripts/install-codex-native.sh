@@ -96,8 +96,8 @@ for path in \
     "$NATIVE_SKILLS_ROOT/humanize/SKILL.md" \
     "$NATIVE_SKILLS_ROOT/humanize-rlcr/SKILL.md" \
     "$NATIVE_SKILLS_ROOT/humanize-consult/SKILL.md" \
-    "$SHARED_SKILLS_ROOT/humanize-gen-plan/SKILL.md" \
-    "$SHARED_SKILLS_ROOT/humanize-refine-plan/SKILL.md" \
+    "$NATIVE_SKILLS_ROOT/humanize-gen-plan/SKILL.md" \
+    "$NATIVE_SKILLS_ROOT/humanize-refine-plan/SKILL.md" \
     "$REPO_ROOT/scripts/native-rlcr.py" \
     "$REPO_ROOT/scripts/remove-codex-hooks.sh"; do
     [[ -f "$path" ]] || die "required source asset missing: $path"
@@ -191,8 +191,8 @@ remove_legacy_shim
 sync_dir "$NATIVE_SKILLS_ROOT/humanize" "$CODEX_SKILLS_DIR/humanize"
 sync_dir "$NATIVE_SKILLS_ROOT/humanize-rlcr" "$CODEX_SKILLS_DIR/humanize-rlcr"
 sync_dir "$NATIVE_SKILLS_ROOT/humanize-consult" "$CODEX_SKILLS_DIR/humanize-consult"
-sync_dir "$SHARED_SKILLS_ROOT/humanize-gen-plan" "$CODEX_SKILLS_DIR/humanize-gen-plan"
-sync_dir "$SHARED_SKILLS_ROOT/humanize-refine-plan" "$CODEX_SKILLS_DIR/humanize-refine-plan"
+sync_dir "$NATIVE_SKILLS_ROOT/humanize-gen-plan" "$CODEX_SKILLS_DIR/humanize-gen-plan"
+sync_dir "$NATIVE_SKILLS_ROOT/humanize-refine-plan" "$CODEX_SKILLS_DIR/humanize-refine-plan"
 
 # Install only deterministic runtime components required by Codex-native skills.
 if [[ "$DRY_RUN" == "true" ]]; then
