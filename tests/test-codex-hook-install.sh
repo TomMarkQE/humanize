@@ -169,7 +169,7 @@ PATH="$TMP_ROOT/fake-bin:$PATH" HOME="$TMP_ROOT/home" "$UNIFIED" \
     > "$TMP_ROOT/both.log" 2>&1
 assert_file "$BOTH_ROOT/kimi-skills/humanize-rlcr/SKILL.md" "combined install keeps legacy Kimi RLCR assets"
 assert_file "$BOTH_ROOT/codex-skills/humanize-rlcr/SKILL.md" "combined install keeps native Codex RLCR assets"
-assert_contains "$BOTH_ROOT/kimi-skills/humanize-rlcr/SKILL.md" 'Legacy Providers' "combined install gives Kimi the legacy provider skill"
+assert_contains "$BOTH_ROOT/kimi-skills/humanize-rlcr/SKILL.md" 'setup-rlcr-loop\.sh' "combined install keeps the unchanged Kimi RLCR workflow"
 assert_contains "$BOTH_ROOT/codex-skills/humanize-rlcr/SKILL.md" 'Codex-native workflow' "combined install gives Codex the native coordinator skill"
 assert_file "$BOTH_ROOT/bin/bitlesson-selector" "combined install preserves Kimi selector shim"
 assert_contains "$BOTH_ROOT/bin/bitlesson-selector" 'kimi-skills/humanize/scripts/bitlesson-select\.sh' "combined selector shim still targets Kimi"
