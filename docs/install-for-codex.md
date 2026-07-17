@@ -1,115 +1,120 @@
-# Install Humanize Skills for Codex
+# Install Codex Humanizer for Codex
 
-This guide explains how to install Humanize for Codex CLI, including the skill runtime (`$CODEX_HOME/skills`) and the native Codex `Stop` hook (`$CODEX_HOME/hooks.json`).
+Codex Humanizer is a Codex-only Skill set. It uses native Codex child threads and a deterministic Python state machine. It does not install a Stop hook, enable `codex_hooks`, launch nested model processes, or install Claude/Kimi commands.
 
-## Quick Install (Recommended)
-
-One-line install from anywhere:
+## Quick Install
 
 ```bash
-tmp_dir="$(mktemp -d)" && git clone --depth 1 https://github.com/PolyArch/humanize.git "$tmp_dir/humanize" && "$tmp_dir/humanize/scripts/install-skills-codex.sh"
+tmp_dir="$(mktemp -d)" && \
+  git clone --depth 1 https://github.com/TomMarkQE/humanize.git \
+    "$tmp_dir/codex-humanizer" && \
+  "$tmp_dir/codex-humanizer/scripts/install-skills-codex.sh"
 ```
 
-From the Humanize repo root:
+From a checkout:
 
 ```bash
 ./scripts/install-skills-codex.sh
 ```
 
-Or use the unified installer directly:
+The equivalent explicit command is:
 
 ```bash
-./scripts/install-skill.sh --target codex
+./scripts/install-codex-humanizer.sh
 ```
 
-This will:
-- Sync `humanize`, `humanize-gen-plan`, `humanize-refine-plan`, and `humanize-rlcr` into `${CODEX_HOME:-~/.codex}/skills`
-- Copy runtime dependencies into `${CODEX_HOME:-~/.codex}/skills/humanize`
-- Install/update native Humanize Stop hooks in `${CODEX_HOME:-~/.codex}/hooks.json`
-- Enable the experimental `codex_hooks` feature in `${CODEX_HOME:-~/.codex}/config.toml` when `codex` is available
-- Seed `~/.config/humanize/config.json` with a Codex/OpenAI `bitlesson_model` when that key is not already set
-- Mark the install as `provider_mode: "codex-only"` when using `--target codex`
-- Use RLCR defaults: `codex exec` with `gpt-5.5:high`, `codex review` with `gpt-5.5:high`
+## Install Locations
 
-Requires Codex CLI `0.114.0` or newer for native hooks. Older Codex builds are not supported by the Codex install path.
+The default remains the historical Codex user Skill root:
+
+```text
+${CODEX_HOME:-~/.codex}/skills
+```
+
+Installed directories:
+
+```text
+codex-humanizer/
+codex-humanizer-gen-plan/
+codex-humanizer-refine-plan/
+codex-humanizer-rlcr/
+```
+
+The shared runtime is:
+
+```text
+${CODEX_HOME:-~/.codex}/skills/codex-humanizer/scripts/
+```
+
+Only these runtime files are installed:
+
+- `native-rlcr.py`;
+- `native_rlcr_common.py`;
+- `native_rlcr_state.py`;
+- `native_rlcr_run.py`;
+- `native_rlcr_review.py`;
+- `native_rlcr_runtime.py`;
+- `codex-humanizer-plan-io.py`.
+
+## Upgrade and Migration
+
+The installer recognizes this fork's previous native installation only when the old `humanize` runtime contains `scripts/native-rlcr.py` and the old Skill contains a native Codex signature. It then removes the four old names:
+
+```text
+humanize
+humanize-gen-plan
+humanize-refine-plan
+humanize-rlcr
+```
+
+If that signature is absent, similarly named directories are preserved rather than deleted blindly.
+
+The installer also runs the existing targeted cleanup for stale Humanize-managed Stop-hook commands. Unrelated Codex hooks are preserved. No new hook is installed.
+
+Restart Codex after installation so Skill discovery drops the old names and loads the new ones.
+
+## Custom Locations
+
+```bash
+./scripts/install-skills-codex.sh \
+  --codex-skills-dir /custom/codex/skills \
+  --codex-config-dir /custom/codex
+```
+
+`--skills-dir` remains an alias for `--codex-skills-dir`.
 
 ## Verify
 
 ```bash
-ls -la "${CODEX_HOME:-$HOME/.codex}/skills"
+skills_root="${CODEX_HOME:-$HOME/.codex}/skills"
+
+for skill in \
+  codex-humanizer \
+  codex-humanizer-gen-plan \
+  codex-humanizer-refine-plan \
+  codex-humanizer-rlcr
+do
+  test -f "$skills_root/$skill/SKILL.md"
+done
+
+python3 "$skills_root/codex-humanizer/scripts/native-rlcr.py" --help
+python3 "$skills_root/codex-humanizer/scripts/codex-humanizer-plan-io.py" --help
+
+rg 'fork_turns: "none"|fork_context: false' \
+  "$skills_root/codex-humanizer"*/SKILL.md
 ```
 
-Expected directories:
-- `humanize`
-- `humanize-gen-plan`
-- `humanize-refine-plan`
-- `humanize-rlcr`
+The installed Skill files must contain an absolute runtime path rather than `{{HUMANIZE_RUNTIME_ROOT}}`.
 
-Runtime dependencies in `humanize/`:
-- `scripts/`
-- `hooks/`
-- `prompt-template/`
-- `templates/`
-- `config/`
-- `agents/`
+## Model and Reasoning Overrides
 
-Installed files/directories:
-- `${CODEX_HOME:-~/.codex}/skills/humanize/SKILL.md`
-- `${CODEX_HOME:-~/.codex}/skills/humanize-gen-plan/SKILL.md`
-- `${CODEX_HOME:-~/.codex}/skills/humanize-refine-plan/SKILL.md`
-- `${CODEX_HOME:-~/.codex}/skills/humanize-rlcr/SKILL.md`
-- `${CODEX_HOME:-~/.codex}/skills/humanize/scripts/`
-- `${CODEX_HOME:-~/.codex}/skills/humanize/hooks/`
-- `${CODEX_HOME:-~/.codex}/skills/humanize/prompt-template/`
-- `${CODEX_HOME:-~/.codex}/skills/humanize/templates/`
-- `${CODEX_HOME:-~/.codex}/skills/humanize/config/`
-- `${CODEX_HOME:-~/.codex}/skills/humanize/agents/`
-- `${CODEX_HOME:-~/.codex}/hooks.json`
-- `${XDG_CONFIG_HOME:-~/.config}/humanize/config.json` (created or updated only when Humanize config keys are unset)
+Model and reasoning selections belong to the live invocation. They are not CLI flags and are not persisted.
 
-Verify native hooks:
+- Omit both fields for inheritance.
+- Pass both as actual `spawn_agent` fields for an explicit override.
+- Use a non-full-history fork.
+- Stop visibly if the active schema cannot represent the requested override.
 
-```bash
-codex features list | rg codex_hooks
-sed -n '1,220p' "${CODEX_HOME:-$HOME/.codex}/hooks.json"
-```
+## No Hook Requirement
 
-Expected:
-- `codex_hooks` is `true`
-- `hooks.json` contains `loop-codex-stop-hook.sh`
-- `${XDG_CONFIG_HOME:-~/.config}/humanize/config.json` contains `bitlesson_model` set to a Codex/OpenAI model such as `gpt-5.5`
-- for `--target codex`, `${XDG_CONFIG_HOME:-~/.config}/humanize/config.json` also contains `provider_mode: "codex-only"`
-
-## Optional: Install for Both Codex and Kimi
-
-```bash
-./scripts/install-skill.sh --target both
-```
-
-## Useful Options
-
-```bash
-# Preview without writing
-./scripts/install-skills-codex.sh --dry-run
-
-# Custom Codex skills dir
-./scripts/install-skills-codex.sh --codex-skills-dir /custom/codex/skills
-
-# Reinstall only the native hooks/config
-./scripts/install-codex-hooks.sh
-```
-
-## Troubleshooting
-
-If scripts are not found from installed skills:
-
-```bash
-ls -la "${CODEX_HOME:-$HOME/.codex}/skills/humanize/scripts"
-```
-
-If native exit gating does not trigger:
-
-```bash
-codex features enable codex_hooks
-sed -n '1,220p' "${CODEX_HOME:-$HOME/.codex}/hooks.json"
-```
+Normal operation does not depend on `$CODEX_HOME/hooks.json`. Phase transitions occur only when the live root thread explicitly runs the deterministic runtime commands named by `$codex-humanizer-rlcr`.

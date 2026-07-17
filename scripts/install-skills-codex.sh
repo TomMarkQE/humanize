@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-#
-# Convenience wrapper: install Humanize skills for Codex target.
-#
-
+# Convenience wrapper for the Codex-only Codex Humanizer installer.
 set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-"$SCRIPT_DIR/install-skill.sh" --target codex "$@"
+"$SCRIPT_DIR/install-codex-humanizer.sh" "$@"

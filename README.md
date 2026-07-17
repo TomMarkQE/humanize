@@ -1,95 +1,114 @@
-# Humanize
+# Codex Humanizer
 
 **Current Version: 1.16.0**
 
-> Derived from the [GAAC (GitHub-as-a-Context)](https://github.com/SihaoLiu/gaac) project.
+> Derived from the Humanize project.
 
-A Claude Code plugin that provides iterative development with independent AI review. Build with confidence through continuous feedback loops.
+Codex Humanizer is a Codex-only fork of Humanize. It provides repository-grounded planning and a native Agent/Subagent implementation-review loop without launching nested `codex exec`, `codex review`, Claude Code, or Kimi processes.
 
-## What is RLCR?
+The upstream Claude Code and Kimi workflows are maintained by the original Humanize project and are not installed or supported by this fork.
 
-**RLCR** stands for **Ralph-Loop with Codex Review**, inspired by the official ralph-loop plugin and enhanced with independent Codex review. The name also reads as **Reinforcement Learning with Code Review** -- reflecting the iterative cycle where AI-generated code is continuously refined through external review feedback.
+## Installed Skills
 
-## Core Concepts
+- `$codex-humanizer`: workflow overview and shared deterministic runtime.
+- `$codex-humanizer-gen-plan`: generate a pure-Codex Goal Plan with bounded repository research and a fresh independent plan review.
+- `$codex-humanizer-refine-plan`: refine annotated plans and produce a QA ledger.
+- `$codex-humanizer-rlcr`: coordinate sequential implementation, optional research, implementation review, fixed-base code review, and finalization.
 
-- **Iteration over Perfection** -- Instead of expecting perfect output in one shot, Humanize leverages continuous feedback loops where issues are caught early and refined incrementally.
-- **One Build + One Review** -- Claude implements, Codex independently reviews. No blind spots.
-- **Ralph Loop with Swarm Mode** -- Iterative refinement continues until all acceptance criteria are met. Optionally parallelize with Agent Teams.
-- **Begin with the End in Mind** -- Before the loop starts, Humanize verifies that *you* understand the plan you are about to execute. The human must remain the architect. ([Details](docs/usage.md#begin-with-the-end-in-mind))
+Skills are installed under:
 
-## How It Works
+```text
+${CODEX_HOME:-~/.codex}/skills
+```
 
-<p align="center">
-  <img src="docs/images/rlcr-workflow.svg" alt="RLCR Workflow" width="680"/>
-</p>
+The Python runtime is installed under:
 
-The loop has two phases: **Implementation** (Claude works, Codex reviews summaries) and **Code Review** (Codex checks code quality with severity markers). Issues feed back into implementation until resolved.
-
+```text
+${CODEX_HOME:-~/.codex}/skills/codex-humanizer/scripts
+```
 
 ## Install
 
 ```bash
-# Add PolyArch marketplace
-/plugin marketplace add PolyArch/humanize
-# If you want to use development branch for experimental features
-/plugin marketplace add PolyArch/humanize#dev
-# Then install humanize plugin
-/plugin install humanize@PolyArch
+tmp_dir="$(mktemp -d)" && \
+  git clone --depth 1 https://github.com/TomMarkQE/humanize.git \
+    "$tmp_dir/codex-humanizer" && \
+  "$tmp_dir/codex-humanizer/scripts/install-skills-codex.sh"
 ```
 
-Requires [codex CLI](https://github.com/openai/codex) for review. See the full [Installation Guide](docs/install-for-claude.md) for prerequisites and alternative setup options.
+From a checkout:
+
+```bash
+./scripts/install-skills-codex.sh
+```
+
+The installer keeps the historical `$CODEX_HOME/skills` location, installs only the Codex Humanizer Skills and their deterministic Python runtime, migrates this fork's previous `humanize-*` native installation when it can verify its signature, and removes stale Humanize-managed Codex Stop-hook entries without enabling new hooks.
+
+Restart Codex after installation or upgrade so the renamed Skill metadata is reloaded.
+
+## Verify
+
+```bash
+skills_root="${CODEX_HOME:-$HOME/.codex}/skills"
+
+test -f "$skills_root/codex-humanizer/SKILL.md"
+test -f "$skills_root/codex-humanizer-gen-plan/SKILL.md"
+test -f "$skills_root/codex-humanizer-refine-plan/SKILL.md"
+test -f "$skills_root/codex-humanizer-rlcr/SKILL.md"
+
+python3 "$skills_root/codex-humanizer/scripts/native-rlcr.py" --help
+```
 
 ## Quick Start
 
-1. **Generate an idea draft** from a loose thought (optional — skip if you already have a draft):
-   ```bash
-   /humanize:gen-idea "add undo/redo to the editor"
-   ```
-   Output goes to `.humanize/ideas/<slug>-<timestamp>.md` by default. Pass a `.md` path to expand existing rough notes. `--n` controls how many parallel directions explore the idea (default 6).
+```text
+Use $codex-humanizer-gen-plan with --input draft.md --output docs/goal-plan.md.
+Review the generated Goal Plan.
+Use $codex-humanizer-rlcr to execute docs/goal-plan.md with --base-ref main.
+```
 
-2. **Generate a plan** from your draft:
-   ```bash
-   /humanize:gen-plan --input draft.md --output docs/plan.md
-   ```
+Refine a commented plan when needed:
 
-3. **Refine an annotated plan** before implementation when reviewers add comments (`CMT:` ... `ENDCMT`, `<cmt>` ... `</cmt>`, or `<comment>` ... `</comment>`):
-   ```bash
-   /humanize:refine-plan --input docs/plan.md
-   ```
+```text
+Use $codex-humanizer-refine-plan with --input docs/goal-plan.md.
+```
 
-4. **Run the loop**:
-   ```bash
-   /humanize:start-rlcr-loop docs/plan.md
-   ```
+Pure-Codex Goal Plans do not contain a `Claude-Codex Deliberation` section. Independent repository research and plan review are real native child tasks, but their branding is not written into the plan as fictional model positions.
 
-5. **Consult Gemini** for deep web research (requires Gemini CLI):
-   ```bash
-   /humanize:ask-gemini What are the latest best practices for X?
-   ```
+## Runtime Model and Reasoning Selection
 
-6. **Monitor progress (in another terminal, not inside Claude Code)**:
-   ```bash
-   source <path/to/humanize>/scripts/humanize.sh # Or just add it into your .bashec or .zshrc
-   humanize monitor rlcr       # RLCR loop
-   humanize monitor skill      # All skill invocations (codex + gemini)
-   humanize monitor codex      # Codex invocations only
-   humanize monitor gemini     # Gemini invocations only
-   ```
+Codex Humanizer stores no subagent model or reasoning-effort defaults.
 
-## Monitor Dashboard
+- Without an override, the root omits `model` and `reasoning_effort` so each child inherits the current runtime selection.
+- With an explicit override, the root passes both as actual `spawn_agent` fields.
+- Explicit overrides use a non-full-history fork: `fork_turns: "none"` or a bounded count on V2, or `fork_context: false` on V1.
+- A model name written only inside a child prompt is not an override.
 
-<p align="center">
-  <img src="docs/images/monitor.png" alt="Humanize Monitor" width="680"/>
-</p>
+Example:
 
-## Documentation
+```text
+Use $codex-humanizer-rlcr to execute docs/goal-plan.md.
+Use the current runtime selection for the worker.
+For research and both reviewers, use <available-model> with <effort>.
+Pass each explicit choice as actual spawn_agent model and reasoning_effort fields.
+```
 
-- [Usage Guide](docs/usage.md) -- Commands, options, environment variables
-- [Install for Claude Code](docs/install-for-claude.md) -- Full installation instructions
-- [Install for Codex](docs/install-for-codex.md) -- Codex skill runtime setup
-- [Install for Kimi](docs/install-for-kimi.md) -- Kimi CLI skill setup
-- [Configuration](docs/usage.md#configuration) -- Shared config hierarchy and override rules
-- [Bitter Lesson Workflow](docs/bitlesson.md) -- Project memory, selector routing, and delta validation
+## Mechanism
+
+The live Codex root thread owns orchestration and decisions. Native children perform bounded work:
+
+```text
+root coordinator
+  -> optional read-only researcher
+  -> sequential writing worker
+  -> fresh implementation reviewer
+  -> fresh fixed-base code reviewer
+  -> finalization
+```
+
+The bundled Python runtime does not call a model. It owns deterministic path, Git, state, result-schema, fixed-base, immutable-plan, and atomic-write checks under `.codex-humanizer/`.
+
+See [Codex installation](docs/install-for-codex.md) and [usage](docs/usage.md).
 
 ## License
 
