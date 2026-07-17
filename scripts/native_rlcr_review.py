@@ -3,6 +3,7 @@
 
 from native_rlcr_run import *  # noqa: F401,F403 - internal sibling runtime surface
 
+
 def extract_field(text: str, label: str, allowed: Iterable[str]) -> str:
     match = re.search(rf"(?mi)^{re.escape(label)}\s*:\s*([A-Z_]+)\s*$", text)
     if not match:
@@ -22,7 +23,7 @@ def final_marker(text: str) -> str:
 
 
 def command_record_implementation_review(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         repo = validate_active(run_dir, state)
@@ -31,6 +32,7 @@ def command_record_implementation_review(args: argparse.Namespace) -> None:
         verify_read_only_guard(repo, state)
         result = resolve_input_file(repo, args.result, "implementation review")
         text = read_text(result, "implementation review")
+        require_sections(text, IMPLEMENTATION_REVIEW_SECTIONS, "implementation review")
         verdict = extract_field(text, "Verdict", IMPL_VERDICTS)
         progress = extract_field(text, "Mainline Progress", PROGRESS_VERDICTS)
         if final_marker(text) != verdict:
@@ -42,9 +44,7 @@ def command_record_implementation_review(args: argparse.Namespace) -> None:
 
         round_number = int(state["current_round"])
         impl_path = run_dir / f"round-{round_number}-implementation-review.md"
-        compat_path = run_dir / f"round-{round_number}-review-result.md"
         atomic_copy_text(result, impl_path)
-        atomic_copy_text(result, compat_path)
         state["active_stage"] = ""
         state["guard_head"] = ""
         state["guard_status_sha256"] = ""
@@ -59,23 +59,32 @@ def command_record_implementation_review(args: argparse.Namespace) -> None:
             terminal = terminalize(run_dir, active, state, "blocked", "implementation reviewer returned BLOCKED")
             output_json(manifest(run_dir, state, terminal))
             return
+        if int(state["mainline_stall_count"]) >= 3:
+            terminal = terminalize(
+                run_dir,
+                active,
+                state,
+                "blocked",
+                "three consecutive implementation rounds stalled, regressed, or produced no commit",
+            )
+            output_json(manifest(run_dir, state, terminal))
+            return
         if verdict == "COMPLETE":
             state["phase"] = "code-review"
             state["review_started"] = True
-            atomic_write(run_dir / ".review-phase-started", f"build_finish_round={round_number}\n")
             write_state(active, state)
             append_event(run_dir, "implementation_complete", state, review=str(impl_path))
             output_json(manifest(run_dir, state, active))
             return
 
         next_round = round_number + 1
-        if next_round >= int(state["max_iterations"]):
+        if next_round >= int(state["max_rounds"]):
             terminal = terminalize(
                 run_dir,
                 active,
                 state,
                 "failed",
-                f"maximum implementation rounds reached ({state['max_iterations']})",
+                f"maximum implementation rounds reached ({state['max_rounds']})",
             )
             output_json(manifest(run_dir, state, terminal))
             return
@@ -88,7 +97,7 @@ def command_record_implementation_review(args: argparse.Namespace) -> None:
 
 
 def command_record_code_review(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         repo = validate_active(run_dir, state)
@@ -97,6 +106,7 @@ def command_record_code_review(args: argparse.Namespace) -> None:
         verify_read_only_guard(repo, state)
         result = resolve_input_file(repo, args.result, "code review")
         text = read_text(result, "code review")
+        require_sections(text, CODE_REVIEW_SECTIONS, "code review")
         verdict = extract_field(text, "Verdict", CODE_VERDICTS)
         if final_marker(text) != verdict:
             raise HumanizeError(f"code review must end with the exact marker {verdict}")
@@ -118,9 +128,7 @@ def command_record_code_review(args: argparse.Namespace) -> None:
 
         round_number = int(state["current_round"])
         code_path = run_dir / f"round-{round_number}-code-review.md"
-        compat_path = run_dir / f"round-{round_number}-review-result.md"
         atomic_copy_text(result, code_path)
-        atomic_copy_text(result, compat_path)
         state["active_stage"] = ""
         state["guard_head"] = ""
         state["guard_status_sha256"] = ""
@@ -147,7 +155,7 @@ def command_record_code_review(args: argparse.Namespace) -> None:
 
 
 def command_update_goal_tracker(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         repo = validate_active(run_dir, state)
@@ -175,7 +183,7 @@ def command_update_goal_tracker(args: argparse.Namespace) -> None:
 
 
 def command_record_finalize(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         repo = validate_active(run_dir, state)
@@ -195,12 +203,18 @@ def command_record_finalize(args: argparse.Namespace) -> None:
         state["head_commit"] = current
         state["active_stage"] = ""
         state["worker_start_head"] = ""
-        terminal = terminalize(run_dir, active, state, "complete", "independent code review passed and finalize checks completed")
+        terminal = terminalize(
+            run_dir,
+            active,
+            state,
+            "complete",
+            "independent fixed-base code review passed and finalize checks completed",
+        )
         output_json(manifest(run_dir, state, terminal))
 
 
 def command_terminal(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         validate_active(run_dir, state)

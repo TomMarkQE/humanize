@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
-"""CLI for the deterministic Codex-native Humanize RLCR runtime."""
+"""CLI for the deterministic Codex Humanizer RLCR runtime."""
 
 from native_rlcr_review import *  # noqa: F401,F403 - internal sibling runtime surface
 
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Deterministic state machine for Codex-native Humanize RLCR. It never invokes a model."
+        description="Deterministic state machine for Codex Humanizer native RLCR. It never invokes a model."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     start = subparsers.add_parser("start", help="initialize a native RLCR run")
     start.add_argument("--repo", help="repository path; defaults to current directory")
     start.add_argument("--plan", help="implementation plan path")
-    start.add_argument("--max", type=int, default=42, help="maximum implementation rounds")
+    start.add_argument(
+        "--max-rounds",
+        "--max",
+        dest="max_rounds",
+        type=int,
+        default=42,
+        help="maximum bounded implementation rounds (default: 42)",
+    )
     start.add_argument("--base-ref", help="fixed review base ref")
     start.add_argument("--track-plan-file", action="store_true")
     start.add_argument("--review-only", action="store_true")
@@ -30,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         choices=("research", "worker", "implementation-review", "code-review", "finalize"),
     )
-    prepare.add_argument("--contract", help="round contract for implementation worker")
+    prepare.add_argument("--contract", help="round contract for an implementation worker")
     prepare.set_defaults(func=command_prepare_stage)
 
     research = subparsers.add_parser("record-research", help="verify and persist read-only research evidence")
@@ -79,16 +87,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
     if getattr(args, "skip_impl", False):
         args.review_only = True
-    if getattr(args, "max", 1) < 1:
-        parser.error("--max must be at least 1")
+    if getattr(args, "max_rounds", 1) < 1:
+        parser.error("--max-rounds must be at least 1")
     try:
         args.func(args)
         return 0
     except HumanizeError as exc:
-        print(f"native-rlcr: {exc}", file=sys.stderr)
+        print(f"codex-humanizer-rlcr: {exc}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:
-        print("native-rlcr: interrupted", file=sys.stderr)
+        print("codex-humanizer-rlcr: interrupted", file=sys.stderr)
         return 130
 
 

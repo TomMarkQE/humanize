@@ -3,6 +3,7 @@
 
 from native_rlcr_state import *  # noqa: F401,F403 - internal sibling runtime surface
 
+
 def command_start(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     ensure_no_active_run(repo)
@@ -15,7 +16,6 @@ def command_start(args: argparse.Namespace) -> None:
         raise HumanizeError(f"base ref {base_ref} is not an ancestor of current HEAD")
 
     plan_path: Optional[pathlib.Path] = None
-    plan_text: str
     if args.plan:
         plan_path = resolve_input_file(repo, args.plan, "plan")
         plan_text = read_text(plan_path, "plan")
@@ -40,12 +40,17 @@ Review the current branch against the fixed base and resolve blocking findings.
             relative = plan_path.relative_to(repo).as_posix()
         except ValueError as exc:
             raise HumanizeError("a tracked plan must be inside the repository") from exc
-        if not run_git(repo, ["ls-files", "--error-unmatch", "--", relative], check=False):
+        tracked = subprocess.run(
+            ["git", "-C", str(repo), "ls-files", "--error-unmatch", "--", relative],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode == 0
+        if not tracked:
             raise HumanizeError(f"tracked plan is not in git: {relative}")
         if run_git(repo, ["status", "--porcelain=v1", "--", relative]):
             raise HumanizeError("tracked plan must be clean at run start")
 
-    base_dir = repo / ".humanize" / "rlcr"
+    base_dir = state_base_dir(repo)
     base_dir.mkdir(parents=True, exist_ok=True)
     timestamp = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_dir = base_dir / timestamp
@@ -55,7 +60,8 @@ Review the current branch against the fixed base and resolve blocking findings.
         suffix += 1
     run_dir.mkdir(parents=True)
 
-    atomic_write(run_dir / "plan.md", plan_text if plan_text.endswith("\n") else plan_text + "\n")
+    normalized_plan = plan_text if plan_text.endswith("\n") else plan_text + "\n"
+    atomic_write(run_dir / "plan.md", normalized_plan)
     goal_text = create_goal_tracker(plan_text)
     atomic_write(run_dir / "goal-tracker.md", goal_text)
 
@@ -63,38 +69,24 @@ Review the current branch against the fixed base and resolve blocking findings.
     initial_phase = "code-review" if args.review_only else "implementation"
     state: Dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "orchestration_mode": "native_subagents",
+        "orchestration_mode": ORCHESTRATION_MODE,
         "status": "active",
         "phase": initial_phase,
         "worker_mode": "code-fix" if args.review_only else "implementation",
         "current_round": 0,
-        "max_iterations": args.max,
+        "max_rounds": args.max_rounds,
         "plan_file": source_label,
         "plan_tracked": bool(args.track_plan_file),
-        "plan_sha256": sha256_file(plan_path) if plan_path else sha256_text(plan_text if plan_text.endswith("\n") else plan_text + "\n"),
+        "plan_sha256": sha256_file(plan_path) if plan_path else sha256_text(normalized_plan),
         "plan_snapshot_sha256": sha256_file(run_dir / "plan.md"),
         "repo_root": str(repo),
         "start_branch": branch,
-        "base_branch": base_ref,
+        "base_ref": base_ref,
         "base_commit": base_commit,
         "head_commit": current,
-        "push_every_round": False,
-        "full_review_round": 5,
         "review_started": bool(args.review_only),
-        # Kept as empty compatibility fields. Runtime model policy is never persisted.
-        "codex_model": "",
-        "codex_effort": "",
-        "codex_timeout": "",
-        "ask_codex_question": False,
-        "session_id": "",
-        "agent_teams": False,
-        "privacy_mode": True,
-        "bitlesson_required": not args.review_only,
-        "bitlesson_file": ".humanize/bitlesson.md",
-        "bitlesson_allow_empty_none": True,
         "mainline_stall_count": 0,
         "last_mainline_verdict": "unknown",
-        "drift_status": "normal",
         "goal_immutable_sha256": sha256_text(goal_immutable_text(goal_text)),
         "active_stage": "",
         "guard_head": "",
@@ -106,8 +98,6 @@ Review the current branch against the fixed base and resolve blocking findings.
     }
     state_file = run_dir / "state.md"
     write_state(state_file, state)
-    if args.review_only:
-        atomic_write(run_dir / ".review-phase-started", "build_finish_round=0\n")
     append_event(run_dir, "run_started", state, base_ref=base_ref, review_only=args.review_only)
     output_json(manifest(run_dir, state, state_file))
 
@@ -127,7 +117,7 @@ def validate_contract(path: pathlib.Path) -> str:
 
 
 def command_prepare_stage(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         repo = validate_active(run_dir, state)
@@ -145,8 +135,7 @@ def command_prepare_stage(args: argparse.Namespace) -> None:
                     raise HumanizeError("implementation worker requires --contract")
                 contract_path = resolve_input_file(repo, args.contract, "contract")
                 validate_contract(contract_path)
-                destination = run_dir / f"round-{state['current_round']}-contract.md"
-                atomic_copy_text(contract_path, destination)
+                atomic_copy_text(contract_path, run_dir / f"round-{state['current_round']}-contract.md")
             state["worker_start_head"] = head_commit(repo)
         elif stage == "research":
             if phase not in {"implementation", "code-fix"}:
@@ -158,8 +147,7 @@ def command_prepare_stage(args: argparse.Namespace) -> None:
             if phase != "implementation-review":
                 raise HumanizeError(f"implementation review is not valid in phase {phase}")
             require_clean(repo)
-            summary = run_dir / f"round-{state['current_round']}-summary.md"
-            read_text(summary, "worker summary")
+            read_text(run_dir / f"round-{state['current_round']}-summary.md", "worker summary")
             state["guard_head"] = head_commit(repo)
             state["guard_status_sha256"] = status_fingerprint(repo)
         elif stage == "code-review":
@@ -198,7 +186,7 @@ def verify_read_only_guard(repo: pathlib.Path, state: Dict[str, Any]) -> None:
 
 
 def command_record_research(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         repo = validate_active(run_dir, state)
@@ -219,7 +207,7 @@ def command_record_research(args: argparse.Namespace) -> None:
 
 
 def command_record_worker(args: argparse.Namespace) -> None:
-    run_dir, active, state = load_run(args.run_dir)
+    run_dir, active, _ = load_run(args.run_dir)
     with run_lock(run_dir):
         state = parse_state(active)
         repo = validate_active(run_dir, state)

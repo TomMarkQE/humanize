@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""State persistence and invariant checks for native Humanize RLCR."""
+"""State persistence and invariant checks for Codex Humanizer RLCR."""
 
 from native_rlcr_common import *  # noqa: F401,F403 - internal sibling runtime surface
+
 
 @contextlib.contextmanager
 def run_lock(run_dir: pathlib.Path) -> Iterator[None]:
@@ -53,21 +54,6 @@ def require_sections(text: str, sections: Iterable[str], label: str) -> None:
         raise HumanizeError(f"{label} is missing required sections: {', '.join(missing)}")
 
 
-def section_between(text: str, start_heading: str, next_level_prefix: str = "## ") -> str:
-    lines = text.splitlines()
-    collecting = False
-    result: List[str] = []
-    for line in lines:
-        if line.strip() == start_heading:
-            collecting = True
-            continue
-        if collecting and line.startswith(next_level_prefix):
-            break
-        if collecting:
-            result.append(line)
-    return "\n".join(result).strip()
-
-
 def extract_plan_section(text: str, headings: Sequence[str]) -> str:
     lines = text.splitlines()
     for index, line in enumerate(lines):
@@ -85,10 +71,7 @@ def extract_plan_section(text: str, headings: Sequence[str]) -> str:
 
 def create_goal_tracker(plan_text: str) -> str:
     goal = extract_plan_section(plan_text, ("## Goal Description", "## Goal", "## Objective", "## Purpose"))
-    acceptance = extract_plan_section(
-        plan_text,
-        ("## Acceptance Criteria", "## Criteria", "## Requirements"),
-    )
+    acceptance = extract_plan_section(plan_text, ("## Acceptance Criteria", "## Criteria", "## Requirements"))
     if not goal:
         non_heading = [line.strip() for line in plan_text.splitlines() if line.strip() and not line.startswith("#")]
         goal = "\n".join(non_heading[:5]) or "Execute the supplied implementation plan."
@@ -147,15 +130,17 @@ def goal_immutable_text(goal_text: str) -> str:
     return match.group(1).strip() + "\n"
 
 
+def state_base_dir(repo: pathlib.Path) -> pathlib.Path:
+    return repo / STATE_ROOT_NAME / "rlcr"
+
+
 def ensure_no_active_run(repo: pathlib.Path) -> None:
-    base = repo / ".humanize" / "rlcr"
+    base = state_base_dir(repo)
     if not base.is_dir():
         return
     active: List[str] = []
     for child in base.iterdir():
-        if not child.is_dir():
-            continue
-        if any((child / name).is_file() for name in ACTIVE_STATE_NAMES):
+        if child.is_dir() and any((child / name).is_file() for name in ACTIVE_STATE_NAMES):
             active.append(str(child))
     if active:
         raise HumanizeError("an active RLCR run already exists: " + ", ".join(sorted(active)))
@@ -166,6 +151,8 @@ def validate_plan_text(text: str, label: str) -> None:
         raise HumanizeError(f"{label} is empty")
     if len(text.splitlines()) < 5:
         raise HumanizeError(f"{label} must contain at least five lines")
+    required = ("## Goal Description", "## Acceptance Criteria")
+    require_sections(text, required, label)
 
 
 def terminalize(run_dir: pathlib.Path, active_path: pathlib.Path, state: Dict[str, Any], status: str, reason: str) -> pathlib.Path:
@@ -185,15 +172,13 @@ def terminalize(run_dir: pathlib.Path, active_path: pathlib.Path, state: Dict[st
 def validate_active(run_dir: pathlib.Path, state: Dict[str, Any]) -> pathlib.Path:
     if state.get("schema_version") != SCHEMA_VERSION:
         raise HumanizeError("unsupported native RLCR state schema")
-    if state.get("orchestration_mode") != "native_subagents":
-        raise HumanizeError("state is not a native-subagent RLCR run")
+    if state.get("orchestration_mode") != ORCHESTRATION_MODE:
+        raise HumanizeError("state is not a Codex Humanizer native-subagent RLCR run")
     if state.get("status") != "active":
         raise HumanizeError(f"run is not active: {state.get('status')}")
 
     repo = pathlib.Path(str(state.get("repo_root", ""))).resolve()
-    if not (repo / ".git").exists():
-        # Worktrees store .git as a file, so fall back to rev-parse rather than requiring a directory.
-        run_git(repo, ["rev-parse", "--show-toplevel"])
+    run_git(repo, ["rev-parse", "--show-toplevel"])
     if current_branch(repo) != state.get("start_branch"):
         raise HumanizeError(
             f"branch changed during RLCR: expected {state.get('start_branch')}, got {current_branch(repo)}"
@@ -231,10 +216,11 @@ def manifest(run_dir: pathlib.Path, state: Dict[str, Any], state_file: pathlib.P
         "status": state.get("status"),
         "phase": state.get("phase"),
         "round": round_number,
+        "max_rounds": state.get("max_rounds"),
         "worker_mode": state.get("worker_mode"),
         "repo_root": state.get("repo_root"),
         "start_branch": state.get("start_branch"),
-        "base_branch": state.get("base_branch"),
+        "base_ref": state.get("base_ref"),
         "base_commit": state.get("base_commit"),
         "head_commit": state.get("head_commit"),
         "plan": str(run_dir / "plan.md"),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for the deterministic Codex-native Humanize RLCR runtime."""
+"""Entry point for the deterministic Codex Humanizer RLCR runtime."""
 
 from native_rlcr_runtime import main
 

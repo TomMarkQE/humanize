@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Deterministic state and validation helper for Codex-native Humanize RLCR.
+"""Shared deterministic helpers for Codex Humanizer RLCR.
 
-This module never invokes a model.  The root Codex thread owns orchestration and
-uses native spawn_agent/followup_task/wait_agent tools.  This helper only owns
-repository checks, state transitions, and atomic persistence.
+This module never invokes a model. The live Codex root thread owns native
+subagent orchestration; this runtime only validates repository invariants,
+serializes state transitions, and persists artifacts atomically.
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ import json
 import os
 import pathlib
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -24,15 +23,17 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tupl
 
 try:
     import fcntl  # type: ignore
-except ImportError:  # pragma: no cover - Codex currently runs on Unix-like hosts.
+except ImportError:  # pragma: no cover - supported Codex hosts are Unix-like.
     fcntl = None
 
-SCHEMA_VERSION = 1
-STATE_BODY = """# Humanize Native RLCR State
+SCHEMA_VERSION = 2
+ORCHESTRATION_MODE = "codex_humanizer_native"
+STATE_ROOT_NAME = ".codex-humanizer"
+STATE_BODY = """# Codex Humanizer Native RLCR State
 
 This file is owned by `native-rlcr.py`. Do not edit it manually.
-The root Codex thread coordinates native worker, research, and reviewer child
-threads; this file records deterministic checkpoints only.
+The live Codex root thread coordinates native worker, research, and reviewer
+children; this file records deterministic checkpoints only.
 """
 
 ACTIVE_STATE_NAMES = ("state.md", "finalize-state.md")
@@ -48,7 +49,6 @@ WORKER_SECTIONS = (
     "## Files Changed",
     "## Validation",
     "## Remaining Items",
-    "## BitLesson Delta",
 )
 RESEARCH_SECTIONS = (
     "## Findings",
@@ -60,6 +60,18 @@ FINALIZE_SECTIONS = (
     "## Simplifications",
     "## Validation",
     "## Remaining Risks",
+)
+IMPLEMENTATION_REVIEW_SECTIONS = (
+    "## Verified Evidence",
+    "## Acceptance-Criteria Status",
+    "## Blocking Issues",
+    "## Queued Follow-up",
+    "## Required Next Objective",
+)
+CODE_REVIEW_SECTIONS = (
+    "## Findings",
+    "## Validation Gaps",
+    "## Non-blocking Notes",
 )
 CONTRACT_LABELS = (
     "Mainline Objective:",
@@ -77,7 +89,7 @@ WORKER_PHASES = {"implementation", "code-fix"}
 
 
 class HumanizeError(RuntimeError):
-    pass
+    """A deterministic workflow or repository invariant was violated."""
 
 
 def utc_now() -> str:
@@ -114,8 +126,7 @@ def atomic_write(path: pathlib.Path, text: str, mode: Optional[int] = None) -> N
 
 
 def atomic_copy_text(source: pathlib.Path, destination: pathlib.Path) -> None:
-    text = source.read_text(encoding="utf-8")
-    atomic_write(destination, text)
+    atomic_write(destination, source.read_text(encoding="utf-8"))
 
 
 def run_git(repo: pathlib.Path, args: Sequence[str], *, check: bool = True) -> str:
@@ -176,10 +187,8 @@ def detect_base_ref(repo: pathlib.Path, explicit: Optional[str]) -> str:
     )
     if remote_head.startswith("origin/"):
         candidate = remote_head.split("/", 1)[1]
-        if run_git(repo, ["show-ref", "--verify", "--quiet", f"refs/heads/{candidate}"], check=False) == "":
-            # show-ref --quiet has no stdout in both success and failure. Validate via rev-parse.
-            if run_git(repo, ["rev-parse", "--verify", f"{candidate}^{{commit}}"], check=False):
-                return candidate
+        if run_git(repo, ["rev-parse", "--verify", f"{candidate}^{{commit}}"], check=False):
+            return candidate
 
     for candidate in ("main", "master"):
         if run_git(repo, ["rev-parse", "--verify", f"{candidate}^{{commit}}"], check=False):
@@ -202,12 +211,13 @@ def normalize_status_path(raw: str) -> str:
 def relevant_status(repo: pathlib.Path) -> List[str]:
     output = run_git(repo, ["status", "--porcelain=v1", "--untracked-files=all"])
     rows: List[str] = []
+    ignored_prefix = f"{STATE_ROOT_NAME}/"
     for line in output.splitlines():
         if not line:
             continue
         raw_path = line[3:] if len(line) >= 4 else line
         path = normalize_status_path(raw_path)
-        if path == ".humanize" or path.startswith(".humanize/") or path.startswith(".humanize-"):
+        if path == STATE_ROOT_NAME or path.startswith(ignored_prefix):
             continue
         rows.append(line)
     return rows
@@ -221,7 +231,9 @@ def require_clean(repo: pathlib.Path) -> None:
     rows = relevant_status(repo)
     if rows:
         formatted = "\n".join(rows[:30])
-        raise HumanizeError(f"repository must be clean outside .humanize before this transition:\n{formatted}")
+        raise HumanizeError(
+            f"repository must be clean outside {STATE_ROOT_NAME} before this transition:\n{formatted}"
+        )
 
 
 def resolve_input_file(repo: pathlib.Path, value: str, label: str) -> pathlib.Path:
@@ -280,32 +292,19 @@ STATE_KEY_ORDER = (
     "phase",
     "worker_mode",
     "current_round",
-    "max_iterations",
+    "max_rounds",
     "plan_file",
     "plan_tracked",
     "plan_sha256",
     "plan_snapshot_sha256",
     "repo_root",
     "start_branch",
-    "base_branch",
+    "base_ref",
     "base_commit",
     "head_commit",
-    "push_every_round",
-    "full_review_round",
     "review_started",
-    "codex_model",
-    "codex_effort",
-    "codex_timeout",
-    "ask_codex_question",
-    "session_id",
-    "agent_teams",
-    "privacy_mode",
-    "bitlesson_required",
-    "bitlesson_file",
-    "bitlesson_allow_empty_none",
     "mainline_stall_count",
     "last_mainline_verdict",
-    "drift_status",
     "goal_immutable_sha256",
     "active_stage",
     "guard_head",
@@ -314,6 +313,7 @@ STATE_KEY_ORDER = (
     "last_worker_changed",
     "started_at",
     "updated_at",
+    "terminal_reason",
 )
 
 
@@ -353,7 +353,7 @@ def state_path(run_dir: pathlib.Path) -> pathlib.Path:
         candidate = run_dir / name
         if candidate.is_file():
             return candidate
-    raise HumanizeError(f"no active native RLCR state found in {run_dir}")
+    raise HumanizeError(f"no active Codex Humanizer RLCR state found in {run_dir}")
 
 
 def write_state(path: pathlib.Path, state: Dict[str, Any]) -> None:

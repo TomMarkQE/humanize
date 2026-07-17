@@ -1,84 +1,114 @@
-# Humanize
+# Codex Humanizer
 
 **Current Version: 1.16.0**
 
-> Derived from the [GAAC (GitHub-as-a-Context)](https://github.com/SihaoLiu/gaac) project.
+> Derived from the Humanize project.
 
-Humanize provides goal-driven implementation loops with independent AI review for Claude Code, Codex, and Kimi.
+Codex Humanizer is a Codex-only fork of Humanize. It provides repository-grounded planning and a native Agent/Subagent implementation-review loop without launching nested `codex exec`, `codex review`, Claude Code, or Kimi processes.
 
-## What is RLCR?
+The upstream Claude Code and Kimi workflows are maintained by the original Humanize project and are not installed or supported by this fork.
 
-**RLCR** stands for **Ralph-Loop with Codex Review**, inspired by the official ralph-loop plugin. It is an iterative cycle in which implementation evidence is independently reviewed and blocking findings feed the next bounded round.
+## Installed Skills
 
-## Core concepts
+- `$codex-humanizer`: workflow overview and shared deterministic runtime.
+- `$codex-humanizer-gen-plan`: generate a pure-Codex Goal Plan with bounded repository research and a fresh independent plan review.
+- `$codex-humanizer-refine-plan`: refine annotated plans and produce a QA ledger.
+- `$codex-humanizer-rlcr`: coordinate sequential implementation, optional research, implementation review, fixed-base code review, and finalization.
 
-- **Iteration over perfection** — make bounded progress, verify it, and refine.
-- **Independent review** — implementation claims are checked against repository evidence and acceptance criteria.
-- **Begin with the end in mind** — the user remains the architect of the Goal Plan.
-- **Provider-specific orchestration** — Claude/Kimi retain their existing hook-driven workflow; Codex uses native child threads and keeps model selection at invocation time.
+Skills are installed under:
 
-## Codex native workflow
+```text
+${CODEX_HOME:-~/.codex}/skills
+```
 
-The Codex install contains provider-specific skills:
+The Python runtime is installed under:
 
-- `$humanize-gen-plan` delegates bounded repository evidence collection to a read-only child.
-- `$humanize-refine-plan` delegates repository-backed `research_request` comments to bounded read-only children.
-- `$humanize-rlcr` makes the current root thread a coordinator for a writing worker, optional researcher, independent implementation reviewer, and independent fixed-base code reviewer.
-
-The Codex runtime performs only deterministic state, Git, and atomic-write checks. It does not launch nested model processes or persist subagent model policy. Explicit child overrides are passed by the invoking root thread as actual `spawn_agent` fields; omitted overrides inherit the current runtime selection.
+```text
+${CODEX_HOME:-~/.codex}/skills/codex-humanizer/scripts
+```
 
 ## Install
 
-### Claude Code
-
-```bash
-/plugin marketplace add PolyArch/humanize
-/plugin install humanize@PolyArch
-```
-
-See [Install for Claude Code](docs/install-for-claude.md).
-
-### Codex
-
 ```bash
 tmp_dir="$(mktemp -d)" && \
-  git clone --depth 1 https://github.com/PolyArch/humanize.git "$tmp_dir/humanize" && \
-  "$tmp_dir/humanize/scripts/install-skills-codex.sh"
+  git clone --depth 1 https://github.com/TomMarkQE/humanize.git \
+    "$tmp_dir/codex-humanizer" && \
+  "$tmp_dir/codex-humanizer/scripts/install-skills-codex.sh"
 ```
 
-The Codex installer migrates away from legacy Humanize-managed Stop hooks while preserving unrelated Codex hooks. See [Install for Codex](docs/install-for-codex.md).
-
-### Kimi
-
-See [Install for Kimi](docs/install-for-kimi.md).
-
-## Quick start
-
-Claude Code commands remain unchanged:
+From a checkout:
 
 ```bash
-/humanize:gen-plan --input draft.md --output docs/plan.md
-/humanize:refine-plan --input docs/plan.md
-/humanize:start-rlcr-loop docs/plan.md
+./scripts/install-skills-codex.sh
 ```
 
-In Codex, invoke the corresponding installed skills:
+The installer keeps the historical `$CODEX_HOME/skills` location, installs only the Codex Humanizer Skills and their deterministic Python runtime, migrates this fork's previous `humanize-*` native installation when it can verify its signature, and removes stale Humanize-managed Codex Stop-hook entries without enabling new hooks.
+
+Restart Codex after installation or upgrade so the renamed Skill metadata is reloaded.
+
+## Verify
+
+```bash
+skills_root="${CODEX_HOME:-$HOME/.codex}/skills"
+
+test -f "$skills_root/codex-humanizer/SKILL.md"
+test -f "$skills_root/codex-humanizer-gen-plan/SKILL.md"
+test -f "$skills_root/codex-humanizer-refine-plan/SKILL.md"
+test -f "$skills_root/codex-humanizer-rlcr/SKILL.md"
+
+python3 "$skills_root/codex-humanizer/scripts/native-rlcr.py" --help
+```
+
+## Quick Start
 
 ```text
-Use $humanize-gen-plan with --input draft.md --output docs/plan.md.
-Use $humanize-refine-plan with --input docs/plan.md.
-Use $humanize-rlcr to execute docs/plan.md.
+Use $codex-humanizer-gen-plan with --input draft.md --output docs/goal-plan.md.
+Review the generated Goal Plan.
+Use $codex-humanizer-rlcr to execute docs/goal-plan.md with --base-ref main.
 ```
 
-Invocation-time child model and reasoning selections may be stated globally or per role. Humanize does not add permanent model defaults for native Codex subagents.
+Refine a commented plan when needed:
 
-## Documentation
+```text
+Use $codex-humanizer-refine-plan with --input docs/goal-plan.md.
+```
 
-- [Usage Guide](docs/usage.md)
-- [Install for Claude Code](docs/install-for-claude.md)
-- [Install for Codex](docs/install-for-codex.md)
-- [Install for Kimi](docs/install-for-kimi.md)
-- [Bitter Lesson Workflow](docs/bitlesson.md)
+Pure-Codex Goal Plans do not contain a `Claude-Codex Deliberation` section. Independent repository research and plan review are real native child tasks, but their branding is not written into the plan as fictional model positions.
+
+## Runtime Model and Reasoning Selection
+
+Codex Humanizer stores no subagent model or reasoning-effort defaults.
+
+- Without an override, the root omits `model` and `reasoning_effort` so each child inherits the current runtime selection.
+- With an explicit override, the root passes both as actual `spawn_agent` fields.
+- Explicit overrides use a non-full-history fork: `fork_turns: "none"` or a bounded count on V2, or `fork_context: false` on V1.
+- A model name written only inside a child prompt is not an override.
+
+Example:
+
+```text
+Use $codex-humanizer-rlcr to execute docs/goal-plan.md.
+Use the current runtime selection for the worker.
+For research and both reviewers, use <available-model> with <effort>.
+Pass each explicit choice as actual spawn_agent model and reasoning_effort fields.
+```
+
+## Mechanism
+
+The live Codex root thread owns orchestration and decisions. Native children perform bounded work:
+
+```text
+root coordinator
+  -> optional read-only researcher
+  -> sequential writing worker
+  -> fresh implementation reviewer
+  -> fresh fixed-base code reviewer
+  -> finalization
+```
+
+The bundled Python runtime does not call a model. It owns deterministic path, Git, state, result-schema, fixed-base, immutable-plan, and atomic-write checks under `.codex-humanizer/`.
+
+See [Codex installation](docs/install-for-codex.md) and [usage](docs/usage.md).
 
 ## License
 
