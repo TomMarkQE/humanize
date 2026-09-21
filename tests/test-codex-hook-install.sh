@@ -98,6 +98,13 @@ else
     fail "Codex install includes deterministic native runtime"
 fi
 
+CAMPAIGN_REFERENCE="codex-skills/humanize/references/campaign-coordinator.md"
+if cmp -s "$PROJECT_ROOT/$CAMPAIGN_REFERENCE" "$CODEX_SKILLS_DIR/humanize/references/campaign-coordinator.md"; then
+    pass "Codex install preserves the App campaign reference"
+else
+    fail "Codex install preserves the App campaign reference" "matching installed reference" "missing or changed"
+fi
+
 if [[ ! -d "$CODEX_SKILLS_DIR/humanize/hooks" ]]; then
     pass "Codex runtime does not install legacy hook scripts"
 else

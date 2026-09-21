@@ -31,6 +31,7 @@ The unified installer is equivalent:
 The installer:
 
 - copies `codex-skills/humanize`, `humanize-gen-plan`, `humanize-refine-plan`, and `humanize-rlcr` into `${CODEX_HOME:-~/.codex}/skills`;
+- includes `humanize/references/campaign-coordinator.md` for App campaigns with task-owned run state;
 - copies the deterministic runtime into `${CODEX_HOME:-~/.codex}/skills/humanize`;
 - hydrates absolute runtime paths in installed Skill files;
 - strips Claude-only frontmatter from installed Codex copies;
@@ -62,6 +63,8 @@ Expected Skill directories:
 - `humanize-rlcr`
 
 The installed `humanize/hooks` directory is intentionally absent on the Codex target.
+
+For an App campaign that already has its own state, scoreboard, attempt records, and evaluator, use the installed `humanize/references/campaign-coordinator.md` with those files. The general `$humanize-rlcr` runtime below remains a separate software workflow; it is not started for that campaign.
 
 ## Runtime model and reasoning selection
 

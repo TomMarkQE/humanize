@@ -75,7 +75,7 @@ Owns sequential writing work in the shared worktree:
 - commit all implementation changes;
 - return a structured checkpoint.
 
-The worker must not edit RLCR state, plan snapshots, review files, or the goal tracker. Reuse the same worker with `followup_task` when the next round depends strongly on its implementation context. Spawn a replacement only when the prior worker is unavailable or a clean context is materially safer.
+The worker must not edit RLCR state, plan snapshots, review files, or the goal tracker. Spawn a fresh worker for each new round with the current contract and paths to relevant durable evidence. Keep retries for that round inside the active worker via `followup_task` when its context is still useful. Do not pass the root transcript or all prior rounds to a replacement.
 
 ### Research child
 
@@ -151,7 +151,7 @@ Success Criteria: observable code, test, and evidence conditions
 
 A contract must incorporate any required research result. Never ask the worker to “finish the whole plan” without a bounded objective.
 
-### 4. Spawn or continue the worker
+### 4. Spawn the round worker
 
 Checkpoint the stage:
 
@@ -161,9 +161,9 @@ python3 "{{HUMANIZE_RUNTIME_ROOT}}/scripts/native-rlcr.py" prepare-stage --run-d
 
 For a `code-fix` phase, use the active code-review findings as the contract; `--contract` is not required.
 
-The worker prompt must include:
+The worker prompt must point to:
 
-- plan, goal tracker, round contract, prior relevant review, and research paths;
+- plan, goal tracker, round contract, and only the prior review or research paths relevant to this round;
 - the exact implementation ownership boundary;
 - requirement to keep the branch and workload constraints unchanged;
 - requirement to run validation, commit all changes, and leave the worktree clean;
@@ -198,6 +198,7 @@ python3 "{{HUMANIZE_RUNTIME_ROOT}}/scripts/native-rlcr.py" record-worker --run-d
 ```
 
 The runtime requires a clean worktree, non-rewritten checkpoint history, and the existing summary sections.
+Keep the worker return concise and link exact validation or failure evidence in the run artifacts. Preserve the fixed base and tested head identity, failed checks, and unresolved work; retrieve earlier round detail only when it changes the next contract or review.
 
 ### 5. Independent implementation review
 
@@ -295,7 +296,7 @@ When the phase is `finalize`, checkpoint a final worker task:
 python3 "{{HUMANIZE_RUNTIME_ROOT}}/scripts/native-rlcr.py" prepare-stage --run-dir <run_dir> --stage finalize
 ```
 
-Use the existing worker via `followup_task` when available. Limit finalization to simplification, current validation, cleanup of accidental artifacts, and final reporting; do not widen scope.
+Use a fresh bounded worker for finalization; pass the current finalization state and relevant evidence paths. Limit finalization to simplification, current validation, cleanup of accidental artifacts, and final reporting; do not widen scope.
 
 Required return:
 

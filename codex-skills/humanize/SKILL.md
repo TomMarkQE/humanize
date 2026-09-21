@@ -20,6 +20,7 @@ The installer hydrates the runtime root below:
 - `$humanize-gen-plan`: generate a plan while a bounded read-only child investigates repository evidence.
 - `$humanize-refine-plan`: refine annotated plans while repository-backed `research_request` comments are handled by bounded read-only children.
 - `$humanize-rlcr`: run a native coordinator loop with a writing worker, optional read-only research, an independent implementation reviewer, and an independent final code reviewer.
+- App campaign coordination: when a task owns its own run state, candidate attempts, evaluation, and promotion rules, read [references/campaign-coordinator.md](references/campaign-coordinator.md). Use that protocol with the task's files; the `.humanize/rlcr` runtime is for the general software RLCR workflow above.
 
 The root thread owns orchestration and integration. Shell and Python helpers perform only deterministic validation, Git checks, state transitions, and atomic file writes. They never select or invoke a model.
 
