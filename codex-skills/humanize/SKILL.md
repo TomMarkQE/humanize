@@ -7,9 +7,9 @@ disable-model-invocation: true
 
 # Humanize for Codex
 
-Humanize keeps requirements, decisions, and final synthesis in the root Codex thread while delegating bounded work to native child threads.
+Humanize keeps requirements and final decisions in the root Codex thread. Native children perform bounded implementation, investigation, and independent review.
 
-The installer hydrates the runtime root below:
+The installer hydrates this runtime root:
 
 ```bash
 {{HUMANIZE_RUNTIME_ROOT}}
@@ -17,29 +17,23 @@ The installer hydrates the runtime root below:
 
 ## Native workflows
 
-- `$humanize-gen-plan`: generate a plan while a bounded read-only child investigates repository evidence.
-- `$humanize-refine-plan`: refine annotated plans while repository-backed `research_request` comments are handled by bounded read-only children.
-- `$humanize-rlcr`: run a native coordinator loop with a writing worker, optional read-only research, an independent implementation reviewer, and an independent final code reviewer.
-- App campaign coordination: when a task owns its own run state, candidate attempts, evaluation, and promotion rules, read [references/campaign-coordinator.md](references/campaign-coordinator.md). Use that protocol with the task's files; the `.humanize/rlcr` runtime is for the general software RLCR workflow above.
-
-The root thread owns orchestration and integration. Shell and Python helpers perform only deterministic validation, Git checks, state transitions, and atomic file writes. They never select or invoke a model.
+- `$humanize-gen-plan`: preserve the user's Goal and acceptance conditions, investigate repository facts, then obtain independent technical criticism of the candidate plan before activation.
+- `$humanize-refine-plan`: refine annotated plans using bounded repository-backed investigation.
+- `$humanize-rlcr`: general software implementation/review through the native deterministic RLCR runtime.
+- Task-owned App campaigns: read [references/campaign-coordinator.md](references/campaign-coordinator.md) and [references/strategy-review.md](references/strategy-review.md). Protocol `campaign_strategy_v1` restores Goal -> Plan -> implementation -> independent strategy review -> feedback disposition while using the task's existing state and evaluator. Do not start a parallel RLCR runtime.
 
 ## Runtime model selection
 
-A caller may choose a child model and reasoning effort for the current invocation. Humanize does not store defaults or routing policy.
+Use actual native spawn fields: `task_name=cNNN_role_purpose`, V2 `fork_turns: "none"` (V1 `fork_context: false`). An iteration ID is not a child-call count. Reuse the child for coherent same-iteration repairs and its Reviewer for follow-up; a replacement adds `_a02` without renumbering the iteration.
 
-For every child:
-
-- When there is no explicit override, omit both `model` and `reasoning_effort` so Codex inherits the current runtime selection.
-- When an override is explicitly selected, pass both values as actual `spawn_agent` fields. Text inside the child prompt is not an override.
-- Use a non-full-history spawn. With the V2 schema use `fork_turns: "none"`; with the V1 schema use `fork_context: false`.
-- If the active `spawn_agent` schema does not expose requested override fields, stop with a capability error rather than pretending the prompt changed the model.
+Humanize has no model default. Omit `model` and `reasoning_effort` without an explicit caller/project choice; otherwise pass the requested values as actual fields. Prompt text is not a model override. If a required native capability is unavailable, report the block instead of simulating independence or launching nested model CLIs.
 
 ## Global rules
 
-1. Delegate only tasks with a clear ownership boundary and a structured return contract.
-2. Keep writing work sequential in the shared worktree.
-3. Read-only children must not edit files, commit, or run state-changing commands. Verify the repository did not change before integrating their result.
-4. The root thread must continue useful, non-overlapping work before joining a child.
-5. Do not finalize before required child evidence is collected and integrated.
-6. Do not launch a nested Codex CLI process as a substitute for native child threads.
+1. Every assignment states the Goal, relevant Plan/AC requirements, current gap, exact local outcome, required prior feedback, immutable base, editable/protected paths, and result location. Links supplement these explicit requirements; they do not replace them.
+2. Keep one candidate writer per worktree. Children write only their assigned reports/artifacts; the parent owns decisions and task state.
+3. Read-only investigation/criticism must not modify implementation, install dependencies, or run GPU validation. A strategy Reviewer may write only its designated report.
+4. Numerical acceptance belongs to the executable evaluator. Strategy review consumes its identity-matched result; it must not become another numerical-validation loop.
+5. Complete every mechanism iteration with independent strategy feedback and parent disposition before dependent next-mechanism work. Preparation, parameter trials, and same-mechanism repairs do not each require another child or review.
+6. Keep validated incumbent and active exploration separate. Preserve failed reasoning, and revisit rejected directions when their prerequisites change.
+7. Do not claim completion from plan/document compliance, a child verdict, or a budget cutoff alone.
