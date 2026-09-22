@@ -1,6 +1,6 @@
 ---
 name: humanize-gen-plan
-description: Generate a structured implementation plan while delegating bounded repository evidence collection to a native read-only Codex subagent.
+description: Generate a goal-faithful implementation plan with repository evidence and independent technical strategy criticism using native Codex children.
 type: flow
 user-invocable: false
 disable-model-invocation: true
@@ -8,109 +8,66 @@ disable-model-invocation: true
 
 # Humanize Generate Plan for Codex
 
-Transform a draft into the existing Humanize plan schema. Keep requirements, decisions, and final synthesis in the root thread; delegate only independent repository investigation.
+Protocol: `campaign_strategy_v1`
 
-The installer hydrates this runtime root:
+Transform the exact user draft into the existing Humanize schema. Preserve the user's Goal, non-goals, hard constraints, optimization preferences and authorization. Only the requested plan output may be written during planning; no implementation, commits or PRs. Existing accepted plans resume rather than regenerate.
+
+Runtime root:
 
 ```bash
 {{HUMANIZE_RUNTIME_ROOT}}
 ```
 
-## Inputs
-
-- `--input <draft.md>`
-- `--output <plan.md>`
-
-Validate first:
+## Validate input/output
 
 ```bash
 "{{HUMANIZE_RUNTIME_ROOT}}/scripts/validate-gen-plan-io.sh" --input <draft.md> --output <plan.md>
 ```
 
-Stop on any non-zero result. Preserve all existing validator exit codes and never overwrite an existing output.
+Stop on nonzero status. Preserve validator exit codes and do not overwrite an existing output. Record repository HEAD and worktree status before any read-only child.
 
-## Delegation boundary
+## Evidence and candidate plan
 
-Create one repository-evidence child when any of these are true:
+Root extracts Goal, non-goals, constraints, measurable success, hard requirements versus trends, and genuinely unresolved user decisions. For distributed repository facts, delegate one bounded read-only investigation: relevant implementation, current starting point, tests, commands, ownership and conflicts. The child returns Relevance, Evidence, Existing Validation, Scope and Ownership, Risks and Gaps, and Plan Implications with exact source pointers. Do not delegate a trivial direct read merely to create a role.
 
-- relevance cannot be established from the draft and already-open files;
-- affected code, tests, ownership, dependencies, or current implementation patterns require broad reading;
-- feasibility or scope depends on facts distributed across multiple repository areas.
+Root writes a candidate plan in context from the exact draft and evidence. Repository discovery is not independent technical criticism. For a substantive optimization plan, obtain criticism of this candidate before final synthesis; the same read-only evidence child may continue as critic, but it must see the candidate and critique the strategy, not author the final plan.
 
-Do not create a child for a tiny or fully specified draft where the root can establish the facts with a few direct reads.
+## Independent Plan Critic prompt
 
-The child owns only this bounded, read-only task:
+Name the task `c000_plan_critic` for an initial campaign. For a strategic revision, use the current durable iteration and a plan-critic purpose; do not renumber completed work. Pass a self-contained input containing the exact Goal/non-goals, draft and candidate plan, implementation starting point, relevant source/measurement pointers, authorization and read-only boundary.
 
-1. Determine whether the draft maps to this repository.
-2. Locate current implementation paths, symbols, tests, validation commands, ownership boundaries, and constraints relevant to the draft.
-3. Identify conflicts between the requested outcome and current repository behavior.
-4. Return evidence; do not write the final plan or modify the repository.
+```text
+Critique the candidate plan independently. Do not merely confirm that files
+and headings exist. Do not implement, commit, install dependencies, run GPU
+validation, or decide numerical tolerances yourself.
 
-### Required child result
+Check fidelity to the user's Goal and hard constraints, the quality of the
+starting implementation, missing requirements, unsupported assumptions,
+strongest alternative strategy, expected source of improvement, smallest
+falsifying experiment, feedback/replanning conditions, and whether each AC
+has an observable outcome. Distinguish task success from process completion.
+Use machine validation as the owner of numerical pass/fail.
 
-The child must return exactly these sections:
-
-```markdown
-## Relevance
-relevant | not_relevant | uncertain
-
-## Evidence
-- `path[:line]` — fact and why it matters
-
-## Existing Validation
-- command or test path — behavior covered
-
-## Scope and Ownership
-- likely changed paths and the reason each is owned
-
-## Risks and Gaps
-- contradiction, missing decision, feasibility risk, or uncertainty
-
-## Plan Implications
-- concise implications for ACs, boundaries, milestones, and sequencing
+Return:
+GOAL_FIDELITY: preserved requirements and any actual deviations
+CORE_RISKS: concrete assumptions affecting the optimization route
+TECHNICAL_GAPS: repository-backed missing prerequisites
+ALTERNATIVE_DIRECTIONS: strongest competing route and its trade-off
+REQUIRED_CHANGES: only decision-changing plan defects
+OPTIONAL_IMPROVEMENTS: non-blocking suggestions
+DISCRIMINATING_EXPERIMENT: minimal next check and possible decisions
+PENDING_USER_DECISIONS: only unresolved material choices, otherwise NONE
 ```
 
-Reject generic recommendations that are not tied to repository evidence.
+Root incorporates required corrections or gives an evidence-backed rejection. Use the same critic for targeted closure of unresolved strategic disagreement; do not create a ritual multi-round debate after the decision is resolved. Unresolved blockers prevent activation. Do not invent cross-model agreement or a second reviewer that never ran. A tiny fully specified non-strategic plan may omit criticism with an explicit reason.
 
-## Spawn requirements
+## Native spawn and join
 
-Pass a self-contained prompt containing the draft path, repository root, read-only prohibition, and the result schema above.
+Use actual `task_name=cNNN_role_purpose`, V2 `fork_turns: "none"` or V1 `fork_context: false`. Omit model/effort without explicit caller/project selection; otherwise set actual fields. Missing required capabilities are reported, never faked through prompt text or nested CLIs. Root can prepare AC mapping and scope while the child reads, without duplicating its investigation.
 
-- V2: use `fork_turns: "none"` and a descriptive `task_name`.
-- V1: use `fork_context: false`.
-- With no explicit runtime override, omit `model` and `reasoning_effort`.
-- With an explicit override, pass both as actual `spawn_agent` fields. Do not put them only in the prompt.
-
-Before spawning, record `HEAD` and `git status --porcelain`. The child may read and run non-mutating discovery commands, but may not edit, commit, install dependencies, or alter generated state.
-
-## Root work while the child runs
-
-Without repeating the repository investigation, the root must continue to:
-
-- extract the goal, non-goals, constraints, quantitative metrics, and unresolved decisions from the draft;
-- distinguish hard requirements from trends or preferences;
-- prepare the plan skeleton and candidate AC identifiers;
-- check the draft for internal clarity, consistency, completeness, and functional contradictions.
-
-Do not immediately wait after spawning unless no useful root work remains.
-
-## Join and integration point
-
-Collect the child before any of these actions:
-
-- final relevance decision;
-- final affected-path and ownership decision;
-- feasibility hints;
-- final AC, milestone, or task synthesis;
-- writing the output file.
-
-After collection, verify `HEAD` and worktree state match the pre-spawn snapshot. If the child changed repository state, do not integrate the result; restore or report the violation first.
-
-If the child fails, the root may take over the same bounded investigation, but must state that delegation failed and must not silently omit the missing evidence.
+Join before final scope, feasibility or acceptance synthesis. Confirm HEAD/worktree did not change through read-only work. A failed child is recorded; root may recover repository discovery, but may not claim independent strategy criticism by self-review.
 
 ## Output schema
-
-Preserve the existing Humanize plan structure:
 
 ```markdown
 # Plan Title
@@ -140,4 +97,6 @@ Preserve the existing Humanize plan structure:
 ## Implementation Notes
 ```
 
-Keep identifiers stable, map tests to ACs, and do not place plan terminology into production-code instructions. Write the plan only after all required evidence and user decisions have been integrated. Review the complete output for inconsistent paths, identifiers, routing tags, and language before reporting success.
+Keep stable AC IDs and executable task-specific checks. The legacy Deliberation heading records actual critic identity, findings and disposition, not fictitious Claude/Codex participation. For task-owned App campaigns, include explicit Goal/Plan/feedback handoffs and per-mechanism independent strategy review from `humanize/references/campaign-coordinator.md`; the task owns machine acceptance and state. Preserve inherited candidate provenance and distinguish re-establishing measurements from reimplementing a kernel.
+
+Review final paths, requirements, unresolved choices and role boundaries before writing the output. Numerical/performance evidence not yet collected remains pending; plan acceptance does not claim measured success.
